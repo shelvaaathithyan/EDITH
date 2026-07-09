@@ -14,15 +14,25 @@ from edith.memory.memory_classifier import MemoryClassifier, ExtractedMemory
 from edith.memory.memory_constants import MAX_CONFIDENCE
 from edith.core.events import event_bus, AppEvent
 from edith.utils.logger import logger
+from edith.core.interfaces.memory import IMemoryManager
 
-class MemoryManager:
+class MemoryManager(IMemoryManager):
     def __init__(self, repository: MemoryRepository):
         self.repo = repository
         self.search_engine = MemorySearch(self.repo)
         self.classifier = MemoryClassifier()
+        self._history = []
         
         # Subscribe to Orchestrator completion to extract memories from interactions
         event_bus.subscribe(AppEvent.REQUEST_COMPLETED, self._on_request_completed)
+
+    def store(self, role: str, content: str) -> None:
+        """Stores conversation history."""
+        self._history.append((role, content))
+
+    def get_history(self) -> str:
+        """Returns the conversation history as a formatted string."""
+        return "\n".join(f"{role}: {content}" for role, content in self._history)
 
     def _on_request_completed(self, data: Dict[str, Any]) -> None:
         context = data.get("context")

@@ -37,8 +37,8 @@ class WakeEngine:
 
     def health_check(self) -> HealthStatus:
         if self._healthy:
-            return HealthStatus(status="healthy")
-        return HealthStatus(status="unhealthy", error="Failed to load wake word model")
+            return HealthStatus(status="healthy", provider="openwakeword", model="hey_jarvis")
+        return HealthStatus(status="unhealthy", provider="openwakeword", model="hey_jarvis", error="Failed to load wake word model")
 
     def start(self):
         if self.is_running or not self._healthy:
