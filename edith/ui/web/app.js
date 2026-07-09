@@ -1,90 +1,198 @@
-const orb = document.getElementById('ai-orb');
-const statusText = document.getElementById('status-text');
-const subText = document.getElementById('sub-text');
-const pulse = document.getElementById('pulse-ring');
-
-const StateConfig = {
-    'STARTING': { text: 'Starting', sub: 'Initializing core systems...', class: 'state-ready' },
-    'INITIALIZING': { text: 'Initializing', sub: 'Loading AI models...', class: 'state-ready' },
-    'READY': { text: 'Ready', sub: 'Waiting for "Hello EDITH"', class: 'state-ready' },
-    'LISTENING': { text: 'Listening', sub: 'I am listening...', class: 'state-listening' },
-    'UNDERSTANDING': { text: 'Understanding', sub: 'Processing speech...', class: 'state-understanding' },
-    'PLANNING': { text: 'Planning', sub: 'Generating execution plan...', class: 'state-planning' },
-    'EXECUTING': { text: 'Executing', sub: 'Running tools...', class: 'state-executing' },
-    'RESPONDING': { text: 'Speaking', sub: '...', class: 'state-responding' },
-    'IDLE': { text: 'Idle', sub: 'Waiting for "Hello EDITH"', class: 'state-ready' },
-    'ERROR': { text: 'Error', sub: 'Something went wrong.', class: 'state-error' },
-    'SHUTTING_DOWN': { text: 'Offline', sub: 'System is shutting down.', class: 'state-ready' }
-};
-
-// This function will be called by Python via pywebview
-window.updateState = function(stateName) {
-    console.log("State transition:", stateName);
-    
-    const config = StateConfig[stateName] || StateConfig['READY'];
-    
-    // Update Text
-    statusText.innerText = config.text;
-    subText.innerText = config.sub;
-    
-    // Reset classes
-    orb.className = 'orb';
-    orb.classList.add(config.class);
-    
-// Special handling for pulse animation
-    if (stateName === 'LISTENING') {
-        pulse.style.display = 'block';
-    } else {
-        pulse.style.display = 'none';
-    }
-    
-    // Update debug panel state
-    document.getElementById('debug-state').innerText = stateName;
-    addTimelineEvent(stateName);
-};
-
-// Toggle Debug Panel with Ctrl+D
-document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key.toLowerCase() === 'd') {
-        const panel = document.getElementById('debug-panel');
-        if (panel.style.display === 'none') {
-            panel.style.display = 'block';
-        } else {
-            panel.style.display = 'none';
-        }
-    }
+// Tab switching logic
+document.querySelectorAll('.nav-links li').forEach(li => {
+    li.addEventListener('click', () => {
+        // Remove active class from all tabs
+        document.querySelectorAll('.nav-links li').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+        
+        // Add active class to clicked tab
+        li.classList.add('active');
+        const tabId = 'tab-' + li.getAttribute('data-tab');
+        document.getElementById(tabId).classList.add('active');
+        
+        // Trigger tab-specific refresh if needed
+        refreshTab(li.getAttribute('data-tab'));
+    });
 });
 
-// Received from Python via pywebview
-window.updateDebug = function(payloadStr) {
-    try {
-        const payload = JSON.parse(payloadStr);
-        if (payload.transcription) document.getElementById('debug-transcription').innerText = payload.transcription;
-        if (payload.goal) document.getElementById('debug-goal').innerText = payload.goal;
-        if (payload.type) document.getElementById('debug-type').innerText = payload.type;
-        if (payload.confidence) document.getElementById('debug-confidence').innerText = payload.confidence;
-        if (payload.latency) document.getElementById('debug-latency').innerText = payload.latency + 's';
-        if (payload.pipeline_duration) document.getElementById('debug-pipeline-dur').innerText = payload.pipeline_duration + 's';
-        if (payload.response) document.getElementById('debug-response').innerText = payload.response;
-        if (payload.json_dump) document.getElementById('debug-json').innerText = payload.json_dump;
-    } catch (e) {
-        console.error("Failed to parse debug payload:", e);
-    }
-};
+// Periodic refresh timer
+setInterval(() => {
+    const activeTab = document.querySelector('.nav-links li.active').getAttribute('data-tab');
+    refreshTab(activeTab, true);
+}, 2000);
 
-let timelineCount = 0;
-function addTimelineEvent(eventName) {
-    const tl = document.getElementById('debug-timeline');
-    if (timelineCount > 0) {
-        tl.innerHTML += ' <span>&rarr;</span> ';
-    }
-    tl.innerHTML += `<span>${eventName}</span>`;
-    timelineCount++;
-    if (timelineCount > 15) {
-        tl.innerHTML = `<span>${eventName}</span>`;
-        timelineCount = 1;
+function refreshTab(tabId, isPolling = false) {
+    if (!window.pywebview) return;
+    
+    switch (tabId) {
+        case 'health': refreshHealth(); break;
+        case 'telemetry': refreshTelemetry(); break;
+        case 'events': if (!isPolling) refreshEvents(); break;
+        case 'memory': refreshMemory(); break;
+        case 'context': refreshContext(); break;
     }
 }
 
-// Initial state
-window.updateState('READY');
+// ── Refresh Functions ───────────────────────────────────────────
+
+async function refreshHealth() {
+    try {
+        const report = await pywebview.api.get_health_report();
+        const overallEl = document.getElementById('health-overall');
+        overallEl.textContent = report.overall_status.toUpperCase();
+        overallEl.className = 'badge ' + report.overall_status;
+        
+        const subTbody = document.querySelector('#health-subsystems-table tbody');
+        subTbody.innerHTML = '';
+        report.subsystems.forEach(sub => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${sub.name}</td>
+                <td><span class="badge ${sub.status.toLowerCase()}">${sub.status}</span></td>
+                <td>${sub.latency_ms}</td>
+            `;
+            subTbody.appendChild(tr);
+        });
+        
+        const capTbody = document.querySelector('#health-capabilities-table tbody');
+        capTbody.innerHTML = '';
+        Object.entries(report.capabilities).forEach(([id, status]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${id}</td>
+                <td><span class="badge ${status.toLowerCase()}">${status}</span></td>
+            `;
+            capTbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Failed to load health", e);
+    }
+}
+
+async function refreshTelemetry() {
+    try {
+        const tel = await pywebview.api.get_telemetry();
+        const tbody = document.querySelector('#telemetry-table tbody');
+        tbody.innerHTML = '';
+        if (Object.keys(tel).length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2">No telemetry available yet.</td></tr>';
+            return;
+        }
+        
+        Object.entries(tel).forEach(([key, val]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${key}</td><td>${val.toFixed(3)}</td>`;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Failed to load telemetry", e);
+    }
+}
+
+async function refreshContext() {
+    try {
+        const ctx = await pywebview.api.get_interaction_context();
+        document.getElementById('context-json').textContent = JSON.stringify(ctx, null, 2);
+    } catch (e) {
+        console.error("Failed to load context", e);
+    }
+}
+
+async function refreshMemory() {
+    try {
+        const memories = await pywebview.api.get_memories();
+        const tbody = document.querySelector('#memory-table tbody');
+        tbody.innerHTML = '';
+        
+        if (memories.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4">No memories found.</td></tr>';
+            return;
+        }
+        
+        memories.forEach(mem => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${mem.category}</td>
+                <td>${mem.title}</td>
+                <td>${mem.value}</td>
+                <td>${mem.confidence.toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Failed to load memory", e);
+    }
+}
+
+async function refreshEvents() {
+    try {
+        const events = await pywebview.api.get_event_log();
+        const stream = document.getElementById('event-stream');
+        stream.innerHTML = '';
+        
+        events.forEach(ev => {
+            const div = document.createElement('div');
+            div.innerHTML = `<span class="event-time">[${ev.time}]</span> <span class="event-type">${ev.event}</span>: ${JSON.stringify(ev.data)}`;
+            stream.appendChild(div);
+        });
+    } catch (e) {
+        console.error("Failed to load events", e);
+    }
+}
+
+// ── Python Event Listener (Push) ────────────────────────────────
+
+window.update_state = function(state, data) {
+    const statusText = document.getElementById('status-text');
+    const subText = document.getElementById('sub-text');
+    const orb = document.getElementById('ai-orb');
+    
+    // Clear old classes
+    orb.className = 'orb';
+    
+    if (state === 'LISTENING') {
+        orb.classList.add('state-listening');
+        statusText.textContent = 'Listening...';
+        subText.textContent = '';
+    } else if (state === 'PROCESSING') {
+        orb.classList.add('state-processing');
+        statusText.textContent = 'Processing';
+        if (data && data.input) subText.textContent = `"${data.input}"`;
+    } else if (state === 'RESPONDING') {
+        orb.classList.add('state-processing'); // Same visual as processing for now
+        statusText.textContent = 'Responding';
+        if (data && data.response) subText.textContent = `"${data.response}"`;
+    } else if (state === 'ERROR') {
+        orb.classList.add('state-error');
+        statusText.textContent = 'Error';
+        if (data && data.error) subText.textContent = data.error;
+    } else {
+        orb.classList.add('state-ready');
+        statusText.textContent = 'System Ready';
+        subText.textContent = 'Awaiting Wake Word';
+    }
+    
+    // Update timeline if there's an event
+    if (data && data.event) {
+        const timeline = document.getElementById('pipeline-timeline');
+        
+        // Remove "No recent activity" if it exists
+        if (timeline.textContent === 'No recent activity.') {
+            timeline.innerHTML = '';
+        }
+        
+        const item = document.createElement('div');
+        item.className = 'timeline-item';
+        item.innerHTML = `
+            <div class="time">${new Date().toLocaleTimeString()}</div>
+            <div class="event">${state} - ${data.event}</div>
+            <div class="detail">${data.detail || ''}</div>
+        `;
+        
+        // Prepend and limit to 5 items
+        timeline.insertBefore(item, timeline.firstChild);
+        if (timeline.children.length > 5) {
+            timeline.removeChild(timeline.lastChild);
+        }
+    }
+};

@@ -7,8 +7,7 @@ from edith.core.state_machine import AppState
 
 class UIBridge:
     """
-    Exposes Python methods to JavaScript.
-    Since we push events to JS, we mainly need a way to store the JS window reference.
+    Exposes Python methods to JavaScript for the Developer Control Center.
     """
     def __init__(self):
         self.window = None
@@ -22,8 +21,6 @@ class UIBridge:
         cat_enum = MemoryCategory(category) if category else None
         
         memories = memory_manager.repo.list_by_category(cat_enum)
-        
-        # Pydantic v2 model_dump with json mode handles datetime serialization
         return [mem.model_dump(mode='json') for mem in memories]
         
     def forget_memory(self, memory_id):
@@ -34,6 +31,25 @@ class UIBridge:
         except Exception as e:
             logger.error(f"UI failed to forget memory: {e}")
             return False
+
+    def get_health_report(self):
+        """Returns the full system health dashboard."""
+        from edith.core.health_dashboard import health_dashboard
+        return health_dashboard.get_report_dict()
+
+    def get_interaction_context(self):
+        """Returns the current Interaction Context state."""
+        from edith.interaction.context.context_manager import context_manager
+        return context_manager.get_context()
+
+    def get_telemetry(self):
+        """Returns latest latency metrics from the last request."""
+        # Telemetry is request-scoped; we expose the last snapshot via event data
+        return getattr(self, '_last_telemetry', {})
+
+    def get_event_log(self):
+        """Returns recent events from the Event Bus."""
+        return getattr(self, '_event_log', [])
 
 class UIManager:
     def __init__(self):
@@ -63,22 +79,23 @@ class UIManager:
             return
             
         logger.info("Starting EDITH UI...")
+        from edith.config.settings import settings
         self.window = webview.create_window(
             'EDITH', 
             url=self.index_html,
             js_api=self.bridge,
-            width=400,
-            height=600,
-            frameless=True,       # Modern aesthetic
+            width=settings.ui_width,
+            height=settings.ui_height,
+            frameless=settings.ui_frameless,
             easy_drag=True,
-            on_top=True,          # Stay on top when active
-            hidden=True,          # Start hidden until wake word
+            on_top=settings.ui_on_top,
+            hidden=True,
             background_color='#000000'
         )
         self.bridge.window = self.window
         
         # Handle close event to hide instead of destroy, or just let it close
-        # For MVP, closing the window will just hide it if we can intercept, 
+        # Closing the window will just hide it if we can intercept, 
         # but pywebview closed event cannot cancel destruction easily.
         # We will just let it close, but the background daemon threads will keep running.
         # Wait, if pywebview.start() returns, the main thread might exit if no other non-daemon threads exist.

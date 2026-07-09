@@ -87,19 +87,36 @@ class Orchestrator:
                 self.telemetry.start("total_request_duration")
                 self._handle_request(text)
             except Exception as e:
-                logger.error(f"Orchestrator unhandled exception: {e}")
-                self.state_machine.transition(AppState.ERROR)
-                self.voice.speak(f"A critical system error occurred: {str(e)}")
+                import traceback
+                tb = traceback.format_exc()
+                logger.error(f"Orchestrator unhandled exception: {e}\n{tb}")
+                
+                # Emit structured error event
+                event_bus.publish(AppEvent.ERROR_OCCURRED, {
+                    "error": str(e),
+                    "traceback": tb,
+                    "input": text
+                })
+                
+                # Friendly voice response (never expose raw exception to user)
+                try:
+                    self.voice.speak("I encountered an issue processing that request. Please try again.")
+                except Exception:
+                    pass
+                    
             finally:
                 self.telemetry.end("total_request_duration")
                 self._input_queue.task_done()
                 
-                # Reset to READY
-                if not self._stop_event.is_set() and self.state_machine.get_state() != AppState.READY:
+                # Always recover to READY
+                if not self._stop_event.is_set():
                     try:
-                        self.state_machine.transition(AppState.READY)
+                        current = self.state_machine.get_state()
+                        if current != AppState.READY:
+                            self.state_machine.transition(AppState.READY)
                     except Exception:
-                        pass
+                        # Force-reset if transition fails
+                        self.state_machine._state = AppState.READY
 
     def _handle_request(self, text: str):
         logger.info(f"Orchestrator processing request: '{text}'")
@@ -145,8 +162,13 @@ class Orchestrator:
         event_bus.publish(AppEvent.PLANNER_STARTED, text)
         
         # Retrieval Pipeline: Interaction Context -> Long-Term Memory
+        self.telemetry.start("context_duration")
         interaction_context_data = self.context.get_context()
+        self.telemetry.end("context_duration")
+        
+        self.telemetry.start("memory_duration")
         memories = self.memory.recall(text, limit=5)
+        self.telemetry.end("memory_duration")
         
         prompt_with_context = text
         if interaction_context_data or memories:

@@ -69,7 +69,7 @@ def test_capability_action_execution():
     )
     result = dummy.execute(plan2)
     assert result.success is False
-    assert "Unknown action" in result.message
+    assert "is not supported by dummy" in result.message
         
 def test_capability_validation_error():
     dummy = DummyCapability()

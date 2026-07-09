@@ -35,7 +35,7 @@ def test_pipeline_interception(clean_pipeline):
     dispatcher, pm = clean_pipeline
     
     # 1. Dispatch a high-risk action
-    step = ExecutionStep(tool="filesystem", arguments={"action": "delete_folder", "path": "test"})
+    step = ExecutionStep(tool="filesystem", arguments={"action": "delete", "path": "test"})
     plan = ExecutionPlan(goal="delete", steps=[step])
     from edith.ai.models import ResponseMetadata
     metadata = ResponseMetadata(provider="test", model="test", latency=0.0, created_at="2026")

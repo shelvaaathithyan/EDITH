@@ -77,6 +77,9 @@ class AppEvent(Enum):
     PERMISSION_GRANTED = auto()
     PERMISSION_DENIED = auto()
 
+    # Error Recovery
+    ERROR_OCCURRED = auto()
+
     # Memory Subsystem
     MEMORY_CREATED = auto()
     MEMORY_UPDATED = auto()

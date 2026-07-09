@@ -30,6 +30,11 @@ def orchestrator(mock_voice, mock_planner):
     dispatcher = MagicMock()
     response_gen = DefaultResponseGenerator()
     
+    mem_mock = MagicMock()
+    mem_mock.recall.return_value = []
+    ctx_mock = MagicMock()
+    ctx_mock.get_context.return_value = {}
+    
     return Orchestrator(
         voice_manager=mock_voice,
         planner=mock_planner,
@@ -37,7 +42,9 @@ def orchestrator(mock_voice, mock_planner):
         response_generator=response_gen,
         bootstrap_manager=bootstrap,
         state_machine=state_machine,
-        telemetry=telemetry
+        telemetry=telemetry,
+        memory_manager=mem_mock,
+        context_manager=ctx_mock
     )
 
 def test_orchestrator_initial_state(orchestrator):

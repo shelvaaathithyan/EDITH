@@ -23,7 +23,7 @@ class WakeEngine:
         try:
             from openwakeword.model import Model
             # We use a default model if a custom 'hello_edith' isn't provided
-            # e.g., "hey_jarvis" as a placeholder for the MVP if needed
+            # e.g., "hey_jarvis" as a placeholder if needed
             self.model = Model(wakeword_models=model_paths or ["hey_jarvis"], inference_framework="onnx")
             self._healthy = True
         except Exception as e:

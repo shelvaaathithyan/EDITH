@@ -63,7 +63,7 @@ class VoiceManager:
         # So we need to either wait for speech to finish, or just call listen() which will block until it gets audio.
         # Wait, if stt.listen() is called while mic is locked, it currently immediately returns None.
         # We need to wait for the speaking to finish if we want to listen *after*.
-        # For MVP, we can rely on an event or a small sleep, but the simplest way is to listen
+        # The simplest way is to listen
         # which respects the lock by returning None, wait, we don't want it to return None.
         # We can poll the lock or `VoiceState` before calling listen().
         import time

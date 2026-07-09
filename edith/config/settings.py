@@ -86,6 +86,32 @@ class Settings(BaseModel):
         description="Aliases mapping natural language to executables or commands"
     )
 
+    # UI settings
+    ui_width: int = Field(default=400, description="Window width in pixels")
+    ui_height: int = Field(default=600, description="Window height in pixels")
+    ui_frameless: bool = Field(default=True, description="Use frameless window")
+    ui_on_top: bool = Field(default=True, description="Keep window on top")
+
+    # Timeouts
+    planner_retry_count: int = Field(default=2, description="Max planner retries on JSON validation failure")
+    capability_timeout: int = Field(default=30, description="Max seconds for a capability execution")
+
+    # Vision settings
+    vision_model: str = Field(default="qwen2.5-vl", description="Default multimodal vision model")
+    ocr_provider: str = Field(default="easyocr", description="Default OCR provider")
+    vision_max_resolution: int = Field(default=1920, description="Max image resolution before downscaling")
+
+    # Spotify settings
+    spotify_default_provider: str = Field(default="desktop", description="Default Spotify provider backend")
+
+    # Logging
+    log_rotation_size_mb: int = Field(default=5, description="Max log file size in MB before rotation")
+    log_backup_count: int = Field(default=3, description="Number of rotated log backups to keep")
+
+    # Embedding
+    embedding_model: str = Field(default="nomic-embed-text", description="Ollama embedding model for LTM semantic search")
+    embedding_dimensions: int = Field(default=768, description="Embedding vector dimension size")
+
 def load_settings() -> Settings:
     if not CONFIG_FILE.exists():
         default_settings = Settings()

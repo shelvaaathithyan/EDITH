@@ -1,0 +1,7 @@
+2026-07-09 15:22:39 | edith                          | ERROR    | Error in pipeline stage MemoryStage: 'MemoryManager' object has no attribute 'store'
+2026-07-09 15:24:28 | edith                          | ERROR    | Failed to launch default browser: webbrowser.open returned False.
+2026-07-09 15:24:36 | edith                          | ERROR    | Error in pipeline stage MemoryStage: 'MemoryManager' object has no attribute 'store'
+2026-07-09 15:25:21 | edith                          | ERROR    | Failed to launch default browser: webbrowser.open returned False.
+2026-07-09 15:25:29 | edith                          | ERROR    | Error in pipeline stage MemoryStage: 'MemoryManager' object has no attribute 'store'
+2026-07-09 15:25:56 | edith                          | ERROR    | Failed to launch default browser: webbrowser.open returned False.
+2026-07-09 15:26:04 | edith                          | ERROR    | Error in pipeline stage MemoryStage: 'MemoryManager' object has no attribute 'store'

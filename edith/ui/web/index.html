@@ -3,46 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EDITH Assistant</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <title>EDITH Control Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="glass-container">
-        <!-- Close button to hide the window -->
-        <div class="header">
-            <span class="title">EDITH</span>
-            <button class="close-btn" onclick="pywebview.api.log_from_js('Close requested'); document.body.style.display='none'">&#x2715;</button>
-        </div>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">EDITH <span>v1.0</span></div>
+            <ul class="nav-links">
+                <li class="active" data-tab="status">Status</li>
+                <li data-tab="health">System Health</li>
+                <li data-tab="telemetry">Telemetry</li>
+                <li data-tab="events">Event Stream</li>
+                <li data-tab="memory">Memory Store</li>
+                <li data-tab="context">Interaction Context</li>
+            </ul>
+        </nav>
 
-        <div class="orb-container">
-            <div id="ai-orb" class="orb state-ready"></div>
-            <div id="pulse-ring" class="pulse"></div>
-        </div>
-        
-        <div class="status-container">
-            <h1 id="status-text">Ready</h1>
-            <p id="sub-text">Waiting for "Hello EDITH"</p>
-        </div>
+        <!-- Main Content Area -->
+        <main class="content">
+            <!-- 1. Status Tab -->
+            <section id="tab-status" class="tab-pane active">
+                <div class="orb-container">
+                    <div id="ai-orb" class="orb state-ready"></div>
+                    <div id="pulse-ring" class="pulse"></div>
+                </div>
+                <div class="status-header">
+                    <h1 id="status-text">System Ready</h1>
+                    <p id="sub-text">Awaiting Wake Word</p>
+                </div>
+                
+                <div class="recent-pipeline panel">
+                    <h3>Recent Pipeline Execution</h3>
+                    <div id="pipeline-timeline" class="timeline">No recent activity.</div>
+                </div>
+            </section>
 
-        <!-- Debug Panel (Hidden by default) -->
-        <div id="debug-panel" class="debug-panel" style="display: none;">
-            <h3>Developer Debug Panel</h3>
-            <div class="debug-grid">
-                <div><strong>State:</strong> <span id="debug-state">N/A</span></div>
-                <div><strong>Transcription:</strong> <span id="debug-transcription">N/A</span></div>
-                <div><strong>Planner Goal:</strong> <span id="debug-goal">N/A</span></div>
-                <div><strong>Planner Type:</strong> <span id="debug-type">N/A</span></div>
-                <div><strong>Confidence:</strong> <span id="debug-confidence">N/A</span></div>
-                <div><strong>Latency:</strong> <span id="debug-latency">N/A</span></div>
-                <div><strong>Pipeline Duration:</strong> <span id="debug-pipeline-dur">N/A</span></div>
-                <div><strong>Final Response:</strong> <span id="debug-response">N/A</span></div>
-            </div>
-            <h4>Pipeline Timeline</h4>
-            <div id="debug-timeline" class="timeline"></div>
-            <h4>Raw JSON</h4>
-            <pre id="debug-json">{}</pre>
-        </div>
+            <!-- 2. Health Tab -->
+            <section id="tab-health" class="tab-pane">
+                <h2>System Health Dashboard</h2>
+                <div class="health-summary">
+                    Overall Status: <span id="health-overall" class="badge">Loading...</span>
+                </div>
+                <div class="grid-layout">
+                    <div class="panel">
+                        <h3>Subsystems</h3>
+                        <table id="health-subsystems-table">
+                            <thead><tr><th>Name</th><th>Status</th><th>Latency (ms)</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="panel">
+                        <h3>Capabilities</h3>
+                        <table id="health-capabilities-table">
+                            <thead><tr><th>Capability ID</th><th>Status</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Telemetry Tab -->
+            <section id="tab-telemetry" class="tab-pane">
+                <h2>Latest Telemetry Metrics</h2>
+                <div class="panel">
+                    <table id="telemetry-table">
+                        <thead><tr><th>Metric</th><th>Duration (s)</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 4. Events Tab -->
+            <section id="tab-events" class="tab-pane">
+                <h2>Live Event Stream</h2>
+                <div class="panel console-panel">
+                    <div id="event-stream" class="console-output"></div>
+                </div>
+            </section>
+
+            <!-- 5. Memory Tab -->
+            <section id="tab-memory" class="tab-pane">
+                <h2>Long-Term Memory Store</h2>
+                <div class="panel">
+                    <table id="memory-table">
+                        <thead><tr><th>Category</th><th>Title</th><th>Value</th><th>Confidence</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 6. Context Tab -->
+            <section id="tab-context" class="tab-pane">
+                <h2>Short-Term Interaction Context</h2>
+                <div class="panel console-panel">
+                    <pre id="context-json">{}</pre>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script src="app.js"></script>

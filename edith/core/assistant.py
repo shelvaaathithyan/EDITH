@@ -1,5 +1,12 @@
+"""
+DEPRECATED: This module is a legacy pre-architecture artifact.
+All functionality has been replaced by VoiceSessionController + Orchestrator.
+Scheduled for removal after integration tests confirm it is unused.
+"""
+import warnings
+warnings.warn("edith.core.assistant is deprecated. Use VoiceSessionController instead.", DeprecationWarning, stacklevel=2)
+
 from edith.core.state import state
-from edith.core.orchestrator import orchestrator
 from edith.voice.manager import voice_manager
 from edith.utils.logger import logger
 from rich.console import Console
