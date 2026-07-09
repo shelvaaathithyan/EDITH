@@ -14,17 +14,20 @@ class PermissionStage(PipelineStage):
         self.permission_manager = permission_manager
 
     def process(self, context: OrchestrationContext) -> None:
-        plan = context.planner_response.data
-        if isinstance(plan, ExecutionPlan):
-            if plan.requires_confirmation:
-                event_bus.publish(AppEvent.PERMISSION_REQUESTED, plan)
-                granted = self.permission_manager.request_permission(plan)
-                if granted:
-                    event_bus.publish(AppEvent.PERMISSION_GRANTED, plan)
-                else:
-                    event_bus.publish(AppEvent.PERMISSION_DENIED, plan)
-                    context.halt_pipeline = True
-                    context.error = Exception("Permission denied by user.")
+        if getattr(context, "skip_permission_check", False):
+            return
+            
+        from edith.ai.models import ResolvedExecutionPlan
+        plan = getattr(context, "resolved_plan", context.planner_response.data)
+        
+        # We only evaluate permissions if the plan has been resolved into a ResolvedExecutionPlan
+        if isinstance(plan, ResolvedExecutionPlan) or getattr(plan, "steps", None):
+            can_execute = self.permission_manager.evaluate_plan(plan)
+            if not can_execute:
+                # Halt pipeline so it doesn't execute
+                context.halt_pipeline = True
+                context.final_response = "This action requires confirmation. Do you want me to continue?"
+                context.error = Exception("Action halted pending user confirmation.")
 
 class ExecutionStage(PipelineStage):
     def __init__(self, resolver: CapabilityResolver, context_manager: IContextManager):
@@ -121,8 +124,8 @@ class Dispatcher:
     ):
         # We can construct different pipelines based on the response type.
         self.execution_pipeline = Pipeline()
-        self.execution_pipeline.add_stage(PermissionStage(permission_manager))
         self.execution_pipeline.add_stage(ContextResolutionStage(context_manager))
+        self.execution_pipeline.add_stage(PermissionStage(permission_manager))
         self.execution_pipeline.add_stage(ExecutionStage(resolver, context_manager))
         self.execution_pipeline.add_stage(MemoryStage(memory_manager, context_manager))
 

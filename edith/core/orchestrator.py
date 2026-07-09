@@ -101,6 +101,38 @@ class Orchestrator:
         
         context = OrchestrationContext(user_input=text)
         
+        # 0. Check for hybrid confirmations
+        from edith.permission.confirmation_detector import confirmation_detector
+        from edith.permission.permission_manager import permission_manager
+        
+        if permission_manager.store.get_active_action():
+            confirmed = confirmation_detector.detect(text)
+            if confirmed is not None:
+                # It is a simple yes/no response
+                resolved_plan = permission_manager.resolve_confirmation(confirmed)
+                if resolved_plan:
+                    # User said yes: inject resolved plan and jump to dispatch
+                    from edith.ai.models import PlannerResponse, ExecutionPlan, ResponseMetadata
+                    # Wrap the resolved plan
+                    context.planner_response = PlannerResponse(
+                        data=ExecutionPlan(goal="resume pending action", steps=[]), 
+                        metadata=ResponseMetadata(provider="system", model="permission_manager", latency=0.0, created_at="N/A")
+                    )
+                    context.resolved_plan = resolved_plan
+                    context.skip_permission_check = True
+                    # Skip planning
+                    self.telemetry.start("pipeline_duration")
+                    self.state_machine.transition(AppState.EXECUTING)
+                    self.dispatcher.dispatch(context)
+                    self.telemetry.end("pipeline_duration")
+                else:
+                    # User said no: cancel
+                    context.final_response = "Action cancelled."
+                    
+                # Skip to response voice output
+                self._finish_request(context)
+                return
+
         # 1. Planning
         self.telemetry.start("planner_duration")
         self.state_machine.transition(AppState.PLANNING)
@@ -119,10 +151,17 @@ class Orchestrator:
             self.dispatcher.dispatch(context)
             self.telemetry.end("pipeline_duration")
             
+        self._finish_request(context)
+
+    def _finish_request(self, context: OrchestrationContext):
         # 3. Response Generation
         self.state_machine.transition(AppState.RESPONDING)
-        final_text = self.response_gen.generate(context)
-        context.final_response = final_text
+        # Only generate a response if one wasn't explicitly set (like in cancellation)
+        if not context.final_response:
+            final_text = self.response_gen.generate(context)
+            context.final_response = final_text
+        else:
+            final_text = context.final_response
         
         # 4. Voice Output
         if final_text:
