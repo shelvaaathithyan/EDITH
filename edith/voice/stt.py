@@ -46,8 +46,13 @@ class STTProvider:
 
                     segments, info = self.model.transcribe(temp_path, beam_size=5)
                     text = "".join([segment.text for segment in segments]).strip()
-                    
                     os.remove(temp_path)
+                    
+                    # Filter out common whisper hallucinations for silence
+                    hallucinations = ["Thanks for watching!", "Subtitles by Amara.org", "Thank you.", ""]
+                    if text in hallucinations or len(text) < 2:
+                        return None
+                        
                     return text
 
                 except sr.WaitTimeoutError:

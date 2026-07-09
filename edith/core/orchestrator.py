@@ -131,4 +131,10 @@ class Orchestrator:
             self.telemetry.end("voice_duration")
             
         logger.info(f"Request complete. Telemetry: {self.telemetry.get_metrics()}")
+        
+        event_bus.publish(AppEvent.REQUEST_COMPLETED, {
+            "context": context,
+            "telemetry": self.telemetry.get_metrics()
+        })
+        
         self.telemetry.clear()

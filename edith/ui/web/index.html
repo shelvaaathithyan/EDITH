@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDITH Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-container">
+        <!-- Close button to hide the window -->
+        <div class="header">
+            <span class="title">EDITH</span>
+            <button class="close-btn" onclick="pywebview.api.log_from_js('Close requested'); document.body.style.display='none'">&#x2715;</button>
+        </div>
+
+        <div class="orb-container">
+            <div id="ai-orb" class="orb state-ready"></div>
+            <div id="pulse-ring" class="pulse"></div>
+        </div>
+        
+        <div class="status-container">
+            <h1 id="status-text">Ready</h1>
+            <p id="sub-text">Waiting for "Hello EDITH"</p>
+        </div>
+
+        <!-- Debug Panel (Hidden by default) -->
+        <div id="debug-panel" class="debug-panel" style="display: none;">
+            <h3>Developer Debug Panel</h3>
+            <div class="debug-grid">
+                <div><strong>State:</strong> <span id="debug-state">N/A</span></div>
+                <div><strong>Transcription:</strong> <span id="debug-transcription">N/A</span></div>
+                <div><strong>Planner Goal:</strong> <span id="debug-goal">N/A</span></div>
+                <div><strong>Planner Type:</strong> <span id="debug-type">N/A</span></div>
+                <div><strong>Confidence:</strong> <span id="debug-confidence">N/A</span></div>
+                <div><strong>Latency:</strong> <span id="debug-latency">N/A</span></div>
+                <div><strong>Pipeline Duration:</strong> <span id="debug-pipeline-dur">N/A</span></div>
+                <div><strong>Final Response:</strong> <span id="debug-response">N/A</span></div>
+            </div>
+            <h4>Pipeline Timeline</h4>
+            <div id="debug-timeline" class="timeline"></div>
+            <h4>Raw JSON</h4>
+            <pre id="debug-json">{}</pre>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

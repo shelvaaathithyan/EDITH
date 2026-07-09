@@ -18,6 +18,7 @@ class AppEvent(Enum):
     PLANNER_COMPLETED = auto()
     PIPELINE_STARTED = auto()
     PIPELINE_COMPLETED = auto()
+    REQUEST_COMPLETED = auto()
     
     # Execution
     EXECUTION_STARTED = auto()
