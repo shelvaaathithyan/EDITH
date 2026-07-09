@@ -21,10 +21,18 @@ class PermissionManager(IPermissionManager):
             "desktop.launch": RiskLevel.LOW,
             "desktop.focus": RiskLevel.LOW,
             "desktop.close": RiskLevel.MEDIUM,
-            "filesystem.delete_file": RiskLevel.HIGH,
-            "filesystem.delete_folder": RiskLevel.HIGH,
+            "filesystem.delete": RiskLevel.HIGH,
+            "filesystem.write_text": RiskLevel.HIGH,
             "system.shutdown": RiskLevel.CRITICAL
         }
+        
+        # Load filesystem manifest risks
+        try:
+            from edith.capabilities.filesystem.filesystem_manifest import MANIFEST
+            for action, risk in MANIFEST["risk_matrix"].items():
+                self._risk_matrix[f"filesystem.{action}"] = risk
+        except ImportError:
+            pass
 
     def _determine_risk(self, plan: Union[ExecutionPlan, ResolvedExecutionPlan]) -> RiskLevel:
         """Determines the overall risk level for a given plan."""

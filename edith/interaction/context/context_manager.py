@@ -32,6 +32,10 @@ class ContextManager(IContextManager):
                 node_type = "website"
             elif key in ["last_search", "query"]:
                 node_type = "search"
+            elif key in ["last_folder", "folder"]:
+                node_type = "folder"
+            elif key in ["last_file", "file"]:
+                node_type = "file"
                 
             if node_type:
                 node = ContextNode(type=node_type, value=value, metadata=context_data)

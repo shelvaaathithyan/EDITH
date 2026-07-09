@@ -33,6 +33,15 @@ class CapabilityResolver:
             except ImportError as e:
                 logger.error(f"Failed to load desktop capability: {e}")
                 return ToolResult(success=False, message="Desktop capability is not installed or failed to load.")
+                
+        if tool_name == "filesystem":
+            try:
+                from edith.capabilities.filesystem import FilesystemCapability
+                # For now instantiating on demand, could be a singleton
+                return FilesystemCapability().execute(plan)
+            except ImportError as e:
+                logger.error(f"Failed to load filesystem capability: {e}")
+                return ToolResult(success=False, message="Filesystem capability is not installed or failed to load.")
         
         if self.default_executor:
             return self.default_executor.execute(plan)

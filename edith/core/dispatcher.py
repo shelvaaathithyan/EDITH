@@ -62,6 +62,9 @@ class ContextResolutionStage(PipelineStage):
         self.context_manager = context_manager
 
     def process(self, context: OrchestrationContext) -> None:
+        if getattr(context, "resolved_plan", None):
+            return
+            
         from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ResolvedExecutionStep
         from edith.interaction.context.context_manager import ContextManager
         from edith.interaction.context.context_exceptions import ContextResolutionError
