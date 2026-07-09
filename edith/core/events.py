@@ -95,6 +95,23 @@ class AppEvent(Enum):
     REGION_CAPTURED = auto()
     UI_DETECTED = auto()
 
+    # Media & Spotify Subsystem
+    SPOTIFY_STARTED = auto()
+    SPOTIFY_CONNECTED = auto()
+    PLAYBACK_STARTED = auto()
+    PLAYBACK_PAUSED = auto()
+    PLAYBACK_STOPPED = auto()
+    TRACK_CHANGED = auto()
+    PLAYLIST_STARTED = auto()
+    ARTIST_STARTED = auto()
+    ALBUM_STARTED = auto()
+    VOLUME_CHANGED = auto()
+    SHUFFLE_CHANGED = auto()
+    REPEAT_CHANGED = auto()
+    TRACK_LIKED = auto()
+    TRACK_UNLIKED = auto()
+    SPOTIFY_CLOSED = auto()
+
 class EventBus:
     def __init__(self):
         self._subscribers: Dict[AppEvent, List[Callable]] = {}

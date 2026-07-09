@@ -22,6 +22,12 @@ class ContextManager(IContextManager):
             "detected_windows": data.get("detected_windows", []),
             "detected_errors": data.get("detected_errors", [])
         }))
+        
+        # Subscribe to Media updates
+        event_bus.subscribe(AppEvent.PLAYBACK_STARTED, lambda data: self.update_context({"media_session": data.get("track")}))
+        event_bus.subscribe(AppEvent.TRACK_CHANGED, lambda data: self.update_context({"media_session": data.get("track")}))
+        event_bus.subscribe(AppEvent.PLAYBACK_PAUSED, lambda _: self.update_context({"playback_state": "PAUSED"}))
+        event_bus.subscribe(AppEvent.PLAYBACK_STOPPED, lambda _: self.update_context({"playback_state": "STOPPED"}))
 
     def update_context(self, context_data: Dict[str, Any]) -> None:
         """
@@ -71,6 +77,10 @@ class ContextManager(IContextManager):
                 node_type = "detected_ui_elements"
             elif key in ["detected_errors", "errors"]:
                 node_type = "detected_errors"
+            elif key in ["media_session", "track"]:
+                node_type = "media_session"
+            elif key in ["playback_state", "playing_status"]:
+                node_type = "playback_state"
                 
             if node_type:
                 node = ContextNode(type=node_type, value=value, metadata=context_data)
