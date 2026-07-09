@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
-from edith.ai.models import ExecutionPlan, ToolResult
+from typing import Union
+from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ToolResult
 
 class IToolExecutor(ABC):
     @abstractmethod
-    def execute(self, plan: ExecutionPlan) -> ToolResult:
+    def execute(self, plan: Union[ExecutionPlan, ResolvedExecutionPlan]) -> ToolResult:
         """Executes a plan and returns a structured ToolResult."""
         pass

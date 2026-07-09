@@ -1,12 +1,13 @@
+from typing import Optional, Dict, Union
+from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ToolResult
 from edith.core.interfaces.executor import IToolExecutor
-from edith.ai.models import ExecutionPlan, ToolResult
 from edith.utils.logger import logger
 
 class CapabilityResolver:
-    def __init__(self, default_executor: IToolExecutor):
+    def __init__(self, default_executor: Optional[IToolExecutor] = None):
         self.default_executor = default_executor
 
-    def resolve_and_execute(self, plan: ExecutionPlan) -> ToolResult:
+    def resolve_and_execute(self, plan: Union[ExecutionPlan, ResolvedExecutionPlan]) -> ToolResult:
         """
         Determines the correct capability provider (Local Tool, Plugin, Remote Service)
         and executes the plan.

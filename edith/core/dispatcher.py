@@ -32,8 +32,10 @@ class ExecutionStage(PipelineStage):
         self.context_manager = context_manager
 
     def process(self, context: OrchestrationContext) -> None:
-        plan = context.planner_response.data
-        if isinstance(plan, ExecutionPlan):
+        from edith.ai.models import ResolvedExecutionPlan
+        plan = getattr(context, "resolved_plan", context.planner_response.data)
+        
+        if isinstance(plan, ResolvedExecutionPlan) or getattr(plan, "steps", None):
             event_bus.publish(AppEvent.EXECUTION_STARTED, plan)
             result = self.resolver.resolve_and_execute(plan)
             context.execution_result = result
@@ -45,11 +47,51 @@ class ExecutionStage(PipelineStage):
                     "last_tool": plan.steps[0].tool if plan.steps else None,
                 }
                 # Inject specific tool data like last_browser, last_url
-                for k, v in result.data.items():
-                    update_data[f"last_{k}"] = v
+                if getattr(result, "data", None):
+                    for k, v in result.data.items():
+                        update_data[f"last_{k}"] = v
                 self.context_manager.update_context(update_data)
                 
             event_bus.publish(AppEvent.EXECUTION_COMPLETED, result)
+
+class ContextResolutionStage(PipelineStage):
+    def __init__(self, context_manager: IContextManager):
+        self.context_manager = context_manager
+
+    def process(self, context: OrchestrationContext) -> None:
+        from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ResolvedExecutionStep
+        from edith.interaction.context.context_manager import ContextManager
+        from edith.interaction.context.context_exceptions import ContextResolutionError
+        
+        plan = context.planner_response.data
+        if not isinstance(plan, ExecutionPlan):
+            return
+            
+        resolved_steps = []
+        if isinstance(self.context_manager, ContextManager):
+            resolver = self.context_manager.get_resolver()
+            for step in plan.steps:
+                resolved_args = {}
+                for k, v in step.arguments.items():
+                    if isinstance(v, str) and v.lower() in resolver.current_keywords | resolver.previous_keywords:
+                        try:
+                            # Try to resolve "it", "this"
+                            expected_type = k if k in ["application", "browser", "folder", "file"] else None
+                            node = resolver.resolve(v, expected_type=expected_type)
+                            resolved_args[k] = node.value
+                        except ContextResolutionError as e:
+                            from edith.utils.logger import logger
+                            logger.warning(f"Could not resolve context for '{v}': {e}. Passing raw string.")
+                            resolved_args[k] = v
+                    else:
+                        resolved_args[k] = v
+                resolved_steps.append(ResolvedExecutionStep(tool=step.tool, arguments=resolved_args))
+        else:
+            # Fallback if IContextManager doesn't have a resolver
+            resolved_steps = [ResolvedExecutionStep(tool=s.tool, arguments=s.arguments) for s in plan.steps]
+            
+        context.resolved_plan = ResolvedExecutionPlan(steps=resolved_steps)
+
 
 class MemoryStage(PipelineStage):
     def __init__(self, memory_manager: IMemoryManager, context_manager: IContextManager):
@@ -80,6 +122,7 @@ class Dispatcher:
         # We can construct different pipelines based on the response type.
         self.execution_pipeline = Pipeline()
         self.execution_pipeline.add_stage(PermissionStage(permission_manager))
+        self.execution_pipeline.add_stage(ContextResolutionStage(context_manager))
         self.execution_pipeline.add_stage(ExecutionStage(resolver, context_manager))
         self.execution_pipeline.add_stage(MemoryStage(memory_manager, context_manager))
 

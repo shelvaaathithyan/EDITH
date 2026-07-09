@@ -12,6 +12,15 @@ class ExecutionPlan(BaseModel):
     requires_confirmation: bool = Field(default=False, description="Whether user confirmation is required before execution")
     confidence: float = Field(default=1.0, description="Confidence score from 0.0 to 1.0")
 
+class ResolvedExecutionStep(BaseModel):
+    """An execution step where ambiguous context references (like 'it') have been resolved."""
+    tool: str
+    arguments: Dict[str, Any]
+
+class ResolvedExecutionPlan(BaseModel):
+    """An execution plan fully resolved against the Interaction Context."""
+    steps: List[ResolvedExecutionStep]
+
 class ChatResponse(BaseModel):
     type: str = Field(default="chat", description="Type of response")
     response: str = Field(description="The natural language response")

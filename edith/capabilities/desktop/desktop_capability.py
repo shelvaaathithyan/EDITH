@@ -1,5 +1,6 @@
 import time
-from edith.ai.models import ExecutionPlan, ToolResult
+from typing import Union
+from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ToolResult
 from edith.utils.logger import logger
 from edith.core.events import event_bus, AppEvent
 
@@ -19,7 +20,7 @@ class DesktopCapability:
         # Initialize detector cache asynchronously if possible, or trigger it early
         detector.load_index()
 
-    def execute(self, plan: ExecutionPlan) -> ToolResult:
+    def execute(self, plan: Union[ExecutionPlan, ResolvedExecutionPlan]) -> ToolResult:
         """Parses the execution plan, runs the desktop action, and returns a ToolResult."""
         if not plan.steps:
             return ToolResult(success=False, message="No steps provided in the execution plan.")
