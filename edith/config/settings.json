@@ -1,0 +1,34 @@
+{
+    "api_key": "",
+    "browser": "chrome",
+    "theme": "dark",
+    "voice_engine": "piper",
+    "voice_profile": "edith_default",
+    "voice_profiles": {
+        "edith_default": {
+            "model_name": "en_US-lessac-medium"
+        }
+    },
+    "interrupt_keywords": [
+        "stop",
+        "cancel",
+        "wait",
+        "hold on",
+        "enough"
+    ],
+    "wake_responses": [
+        "Yes?"
+    ],
+    "speech_speed": 1.0,
+    "volume": 1.0,
+    "microphone_index": null,
+    "enable_sound_effects": true,
+    "ambient_noise_calibration": true,
+    "record_timeout": 8,
+    "silence_timeout": 2,
+    "ai_provider": "ollama",
+    "ai_model": "qwen2.5:latest",
+    "ai_temperature": 0.2,
+    "ai_max_tokens": 2048,
+    "ai_timeout": 60
+}
