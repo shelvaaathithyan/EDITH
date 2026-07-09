@@ -27,8 +27,9 @@ class PermissionStage(PipelineStage):
                     context.error = Exception("Permission denied by user.")
 
 class ExecutionStage(PipelineStage):
-    def __init__(self, resolver: CapabilityResolver):
+    def __init__(self, resolver: CapabilityResolver, context_manager: IContextManager):
         self.resolver = resolver
+        self.context_manager = context_manager
 
     def process(self, context: OrchestrationContext) -> None:
         plan = context.planner_response.data
@@ -36,6 +37,18 @@ class ExecutionStage(PipelineStage):
             event_bus.publish(AppEvent.EXECUTION_STARTED, plan)
             result = self.resolver.resolve_and_execute(plan)
             context.execution_result = result
+            
+            # Extract ToolResult data to the global context
+            from edith.ai.models import ToolResult
+            if isinstance(result, ToolResult) and result.success:
+                update_data = {
+                    "last_tool": plan.steps[0].tool if plan.steps else None,
+                }
+                # Inject specific tool data like last_browser, last_url
+                for k, v in result.data.items():
+                    update_data[f"last_{k}"] = v
+                self.context_manager.update_context(update_data)
+                
             event_bus.publish(AppEvent.EXECUTION_COMPLETED, result)
 
 class MemoryStage(PipelineStage):
@@ -67,7 +80,7 @@ class Dispatcher:
         # We can construct different pipelines based on the response type.
         self.execution_pipeline = Pipeline()
         self.execution_pipeline.add_stage(PermissionStage(permission_manager))
-        self.execution_pipeline.add_stage(ExecutionStage(resolver))
+        self.execution_pipeline.add_stage(ExecutionStage(resolver, context_manager))
         self.execution_pipeline.add_stage(MemoryStage(memory_manager, context_manager))
 
         self.chat_pipeline = Pipeline()

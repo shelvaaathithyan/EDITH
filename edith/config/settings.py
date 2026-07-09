@@ -46,6 +46,19 @@ class Settings(BaseModel):
     ai_max_tokens: int = Field(default=2048, description="Max tokens for generation")
     ai_timeout: int = Field(default=60, description="Request timeout in seconds")
 
+    # Browser Capability settings
+    default_search_engine: str = Field(default="google", description="google, bing, duckduckgo, etc")
+    quick_sites: dict[str, str] = Field(
+        default={
+            "github": "https://github.com",
+            "youtube": "https://youtube.com",
+            "gmail": "https://mail.google.com",
+            "chatgpt": "https://chat.openai.com",
+            "localhost": "http://localhost:3000"
+        },
+        description="Quick site aliases mapping word to URL"
+    )
+
 def load_settings() -> Settings:
     if not CONFIG_FILE.exists():
         default_settings = Settings()

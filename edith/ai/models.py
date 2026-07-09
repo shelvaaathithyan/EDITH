@@ -39,3 +39,14 @@ class HealthStatus(BaseModel):
     latency: Optional[float] = None
     error: Optional[str] = None
     details: Dict[str, Any] = Field(default_factory=dict, description="Additional health details like 'ollama_running', 'model_installed', etc.")
+
+class ToolResult(BaseModel):
+    """Structured response from a Capability Execution."""
+    success: bool
+    message: str
+    data: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary capability-specific payload")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        d = {"success": self.success, "message": self.message}
+        d.update(self.data)
+        return d

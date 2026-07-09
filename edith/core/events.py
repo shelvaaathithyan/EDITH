@@ -25,6 +25,15 @@ class AppEvent(Enum):
     EXECUTION_COMPLETED = auto()
     TOOL_EXECUTED = auto()
     
+    # Browser Capability
+    BROWSER_LAUNCH_STARTED = auto()
+    BROWSER_LAUNCH_COMPLETED = auto()
+    BROWSER_SEARCH_STARTED = auto()
+    BROWSER_SEARCH_COMPLETED = auto()
+    BROWSER_NAVIGATION_STARTED = auto()
+    BROWSER_NAVIGATION_COMPLETED = auto()
+    BROWSER_LAUNCH_FAILED = auto()
+    
     # Permissions
     PERMISSION_REQUESTED = auto()
     PERMISSION_GRANTED = auto()

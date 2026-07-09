@@ -23,7 +23,10 @@ class DefaultResponseGenerator(IResponseGenerator):
             if isinstance(resp_data, ExecutionPlan):
                 # If execution yielded a specific result
                 if context.execution_result:
-                    return context.execution_result
+                    from edith.ai.models import ToolResult
+                    if isinstance(context.execution_result, ToolResult):
+                        return context.execution_result.message
+                    return str(context.execution_result)
                 # Fallback to narrating the goal
                 return f"I have completed the task: {resp_data.goal}"
 
