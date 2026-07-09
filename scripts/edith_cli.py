@@ -2,6 +2,8 @@ import sys
 import argparse
 from edith.utils.logger import logger
 from edith.sdk.capability import CapabilityLoader, capability_registry
+from edith.memory import memory_manager
+from edith.memory.memory_constants import MemoryCategory
 
 def _setup_registry():
     loader = CapabilityLoader(capability_registry)
@@ -54,6 +56,34 @@ def cmd_inspect(args):
         print(f"  - {action.ljust(15)} : {risk.name}")
     print("=" * 60)
 
+def cmd_memory(args):
+    action = args.mem_action
+    
+    if action == "list":
+        category = MemoryCategory(args.category) if args.category else None
+        memories = memory_manager.repo.list_by_category(category)
+        
+        print(f"\n🧠 EDITH Long-Term Memory (Total: {len(memories)})")
+        print("-" * 80)
+        for m in sorted(memories, key=lambda x: x.relevance_score, reverse=True):
+            tags = f"[{', '.join(m.tags)}]" if m.tags else ""
+            print(f"{m.id[:8]} | {m.category.value[:10].ljust(10)} | Conf: {m.confidence:.2f} | {m.title.ljust(25)} | {m.value[:20]} {tags}")
+        print("-" * 80)
+        
+    elif action == "forget":
+        try:
+            memory_manager.forget(args.id)
+            print(f"✅ Memory {args.id} forgotten.")
+        except Exception as e:
+            print(f"❌ Failed to forget memory: {e}")
+            
+    elif action == "remember":
+        mem = memory_manager.remember(args.text)
+        if mem:
+            print(f"✅ Learned: {mem.title} -> {mem.value}")
+        else:
+            print("❌ Could not extract a memory from the text.")
+
 def main():
     parser = argparse.ArgumentParser(description="EDITH Developer Tools")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -68,6 +98,19 @@ def main():
     inspect_parser = subparsers.add_parser("inspect", help="Inspect a specific capability manifest")
     inspect_parser.add_argument("capability", help="ID of the capability to inspect")
 
+    # edith memory
+    mem_parser = subparsers.add_parser("memory", help="Inspect and manage Long-Term Memory")
+    mem_subparsers = mem_parser.add_subparsers(dest="mem_action")
+    
+    list_mem = mem_subparsers.add_parser("list", help="List memories")
+    list_mem.add_argument("--category", "-c", help="Filter by category")
+    
+    forget_mem = mem_subparsers.add_parser("forget", help="Forget a specific memory")
+    forget_mem.add_argument("id", help="Memory ID")
+    
+    remember_mem = mem_subparsers.add_parser("remember", help="Explicitly tell EDITH to remember something")
+    remember_mem.add_argument("text", help="Text to remember")
+
     args = parser.parse_args()
 
     # Suppress verbose logs for CLI tools
@@ -79,6 +122,8 @@ def main():
         cmd_list(args)
     elif args.command == "inspect":
         cmd_inspect(args)
+    elif args.command == "memory":
+        cmd_memory(args)
     else:
         parser.print_help()
 

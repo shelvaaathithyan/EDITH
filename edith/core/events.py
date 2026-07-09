@@ -77,6 +77,14 @@ class AppEvent(Enum):
     PERMISSION_GRANTED = auto()
     PERMISSION_DENIED = auto()
 
+    # Memory Subsystem
+    MEMORY_CREATED = auto()
+    MEMORY_UPDATED = auto()
+    MEMORY_DELETED = auto()
+    MEMORY_ACCESSED = auto()
+    MEMORY_EXPIRED = auto()
+    MEMORY_SEARCHED = auto()
+
 class EventBus:
     def __init__(self):
         self._subscribers: Dict[AppEvent, List[Callable]] = {}

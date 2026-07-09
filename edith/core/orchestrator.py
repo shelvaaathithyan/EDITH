@@ -11,6 +11,8 @@ from edith.core.telemetry import TelemetryTracker
 from edith.core.dispatcher import Dispatcher
 from edith.core.models import OrchestrationContext
 from edith.core.lifecycle import BootstrapManager
+from edith.core.interfaces.context import IContextManager
+from edith.memory.memory_manager import MemoryManager
 
 class Orchestrator:
     def __init__(
@@ -21,7 +23,9 @@ class Orchestrator:
         response_generator: IResponseGenerator,
         bootstrap_manager: BootstrapManager,
         state_machine: StateMachine,
-        telemetry: TelemetryTracker
+        telemetry: TelemetryTracker,
+        memory_manager: MemoryManager,
+        context_manager: IContextManager
     ):
         self.voice = voice_manager
         self.planner = planner
@@ -30,6 +34,8 @@ class Orchestrator:
         self.bootstrap = bootstrap_manager
         self.state_machine = state_machine
         self.telemetry = telemetry
+        self.memory = memory_manager
+        self.context = context_manager
         
         self._input_queue = queue.Queue()
         self._worker_thread: Optional[threading.Thread] = None
@@ -133,12 +139,29 @@ class Orchestrator:
                 self._finish_request(context)
                 return
 
-        # 1. Planning
+        # 1. Planning with Memory Retrieval
         self.telemetry.start("planner_duration")
         self.state_machine.transition(AppState.PLANNING)
         event_bus.publish(AppEvent.PLANNER_STARTED, text)
         
-        planner_response = self.planner.plan(text)
+        # Retrieval Pipeline: Interaction Context -> Long-Term Memory
+        interaction_context_data = self.context.get_context()
+        memories = self.memory.recall(text, limit=5)
+        
+        prompt_with_context = text
+        if interaction_context_data or memories:
+            context_str = "CURRENT CONTEXT:\n"
+            for k, v in interaction_context_data.items():
+                context_str += f"- {k}: {v}\n"
+                
+            if memories:
+                context_str += "\nLONG-TERM MEMORY:\n"
+                for m in memories:
+                    context_str += f"- {m.title}: {m.value} (Confidence: {m.confidence:.2f})\n"
+                    
+            prompt_with_context = f"{context_str}\nUSER REQUEST:\n{text}"
+        
+        planner_response = self.planner.plan(prompt_with_context)
         context.planner_response = planner_response
         
         event_bus.publish(AppEvent.PLANNER_COMPLETED, planner_response)

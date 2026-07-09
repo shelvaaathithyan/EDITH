@@ -15,6 +15,25 @@ class UIBridge:
 
     def log_from_js(self, message):
         logger.debug(f"[UI] {message}")
+        
+    def get_memories(self, category=None):
+        from edith.memory import memory_manager
+        from edith.memory.memory_constants import MemoryCategory
+        cat_enum = MemoryCategory(category) if category else None
+        
+        memories = memory_manager.repo.list_by_category(cat_enum)
+        
+        # Pydantic v2 model_dump with json mode handles datetime serialization
+        return [mem.model_dump(mode='json') for mem in memories]
+        
+    def forget_memory(self, memory_id):
+        from edith.memory import memory_manager
+        try:
+            memory_manager.forget(memory_id)
+            return True
+        except Exception as e:
+            logger.error(f"UI failed to forget memory: {e}")
+            return False
 
 class UIManager:
     def __init__(self):

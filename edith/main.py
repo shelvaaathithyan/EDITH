@@ -30,13 +30,7 @@ class MockPermission:
     def request_permission(self, plan):
         return True
 
-class MockMemory:
-    def store(self, role, content): pass
-    def get_history(self): return ""
-
-class MockContext:
-    def update_context(self, data): pass
-    def get_context(self): return {}
+# Removed MockContext and MockMemory as they are now implemented
 
 def build_app():
     # 1. Base Core
@@ -56,10 +50,12 @@ def build_app():
     # 4. Pipeline & Dispatcher
     from edith.core.resolver import CapabilityResolver
     from edith.sdk.capability import CapabilityLoader, capability_registry
+    from edith.interaction.context.context_manager import context_manager
+    from edith.memory import memory_manager
     
     loader = CapabilityLoader(capability_registry)
     resolver = CapabilityResolver(default_executor=None)
-    dispatcher = Dispatcher(resolver, permission, memory, context)
+    dispatcher = Dispatcher(resolver, permission, memory_manager, context_manager)
     response_gen = DefaultResponseGenerator()
     
     # 5. Core Orchestrator
