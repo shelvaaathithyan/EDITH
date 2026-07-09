@@ -36,6 +36,18 @@ class ContextManager(IContextManager):
                 node_type = "folder"
             elif key in ["last_file", "file"]:
                 node_type = "file"
+            elif key in ["last_cwd", "terminal_cwd"]:
+                node_type = "cwd"
+            elif key in ["last_session_id", "terminal_session"]:
+                node_type = "session_id"
+            elif key in ["last_workspace_id", "terminal_workspace"]:
+                node_type = "workspace_id"
+            elif key in ["last_group_id", "terminal_group"]:
+                node_type = "group_id"
+            elif key in ["last_command", "terminal_command"]:
+                node_type = "command"
+            elif key in ["last_shell", "terminal_shell"]:
+                node_type = "shell"
                 
             if node_type:
                 node = ContextNode(type=node_type, value=value, metadata=context_data)
