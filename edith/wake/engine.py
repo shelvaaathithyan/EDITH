@@ -13,6 +13,8 @@ class WakeEngine:
         In a true production environment, `model_paths` would point to a custom 
         'Hello EDITH' .onnx model. We'll use a default or handle missing models gracefully.
         """
+        from edith.config.settings import settings
+
         self.chunk_size = chunk_size
         self.sensitivity = sensitivity
         self.is_running = False
@@ -20,14 +22,28 @@ class WakeEngine:
         self._audio = None
         self._stream = None
         
+        # Use provided model_paths, or default from settings
+        target_model = model_paths[0] if model_paths else settings.wake_word_model
+        
         try:
             from openwakeword.model import Model
-            # We use a default model if a custom 'hello_edith' isn't provided
-            # e.g., "hey_jarvis" as a placeholder if needed
-            self.model = Model(wakeword_models=model_paths or ["hey_jarvis"], inference_framework="onnx")
-            self._healthy = True
+            from openwakeword.utils import download_models
+            try:
+                self.model = Model(wakeword_models=[target_model], inference_framework="onnx")
+                self._healthy = True
+            except Exception as e:
+                logger.warning(f"Failed to load configured wake model '{target_model}': {e}. Attempting to download default 'hey_jarvis'.")
+                # Attempt to download the models if missing
+                try:
+                    download_models()
+                except Exception as dl_e:
+                    logger.error(f"Failed to download openwakeword models: {dl_e}")
+                    
+                # Fallback to bundled 'hey_jarvis'
+                self.model = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+                self._healthy = True
         except Exception as e:
-            logger.error(f"Failed to load OpenWakeWord model: {e}")
+            logger.error(f"Wake Engine critical failure - openwakeword unavailable: {e}")
             self._healthy = False
             self.model = None
 

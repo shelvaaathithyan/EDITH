@@ -3,6 +3,8 @@ import requests
 import tempfile
 import threading
 from pathlib import Path
+import wave
+from piper.config import SynthesisConfig
 from piper.voice import PiperVoice
 from edith.config.settings import settings
 from edith.utils.logger import logger
@@ -78,8 +80,12 @@ class PiperProvider(BaseTTSProvider):
                     wav_path = temp_wav.name
                 
                 # Synthesize text to WAV using Piper
-                with open(wav_path, "wb") as wav_file:
-                    self.voice.synthesize(text, wav_file, length_scale=1.0/settings.speech_speed)
+                with wave.open(wav_path, "wb") as wav_file:
+                    self.voice.synthesize_wav(
+                        text, 
+                        wav_file, 
+                        syn_config=SynthesisConfig(length_scale=1.0/settings.speech_speed)
+                    )
 
                 # Play the WAV file using sounddevice (this blocks until done)
                 audio_player.play_wav(wav_path, block=True)

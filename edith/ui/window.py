@@ -10,7 +10,7 @@ class UIBridge:
     Exposes Python methods to JavaScript for the Developer Control Center.
     """
     def __init__(self):
-        self.window = None
+        self._window = None
 
     def log_from_js(self, message):
         logger.debug(f"[UI] {message}")
@@ -60,7 +60,8 @@ class UIManager:
         # Determine paths
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.web_dir = os.path.join(base_dir, "web")
-        self.index_html = os.path.join(self.web_dir, "index.html")
+        # Ensure it is a valid file URI for PyWebView reliability
+        self.index_html = "file:///" + os.path.join(self.web_dir, "index.html").replace('\\', '/')
 
     def initialize(self):
         """Lifecycle init"""
@@ -78,8 +79,9 @@ class UIManager:
         if self._is_running:
             return
             
-        logger.info("Starting EDITH UI...")
+        logger.info(f"Creating UI window on thread: {threading.current_thread().name}...")
         from edith.config.settings import settings
+        logger.info(f"Resolved HTML path: {self.index_html}")
         self.window = webview.create_window(
             'EDITH', 
             url=self.index_html,
@@ -89,10 +91,11 @@ class UIManager:
             frameless=settings.ui_frameless,
             easy_drag=True,
             on_top=settings.ui_on_top,
-            hidden=True,
+            hidden=settings.ui_start_hidden,
             background_color='#000000'
         )
-        self.bridge.window = self.window
+        self.bridge._window = self.window
+        logger.info("UI window created.")
         
         # Handle close event to hide instead of destroy, or just let it close
         # Closing the window will just hide it if we can intercept, 
@@ -104,8 +107,9 @@ class UIManager:
         self._is_running = True
         
         # Start blocking loop
-        # Note: In production, we might want to start this right away but keep it hidden
+        logger.info("Calling webview.start()...")
         webview.start(debug=False)
+        logger.info("webview.start() returned. EDITH UI successfully initialized.")
 
     def stop(self):
         if self.window and self._is_running:

@@ -6,11 +6,11 @@ authors = ["Shelva Aathithyan <shelvaaathithyan@example.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.11"
-typer = {extras = ["all"], version = "^0.9.0"}
+python = ">=3.11,<3.13"
+typer = {extras = ["all"], version = "^0.12.0"}
+click = "<8.2.0"
 rich = "^13.7.0"
 faster-whisper = "^1.0.0"
-pyttsx3 = "^2.90"
 openai = "^1.12.0"
 playwright = "^1.41.0"
 pydantic = "^2.6.0"
@@ -26,6 +26,24 @@ openwakeword = "^0.6.0"
 pywebview = "^5.0.0"
 psutil = "^6.0.0"
 pywin32 = "^306"
+send2trash = "^2.1.0"
+winshell = "^0.6"
+easyocr = "^1.7.2"
+Pillow = "^10.2.0"
+PyMuPDF = "^1.23.0"
+mss = "^9.0.0"
+numpy = "^1.26.0"
+PyAutoGUI = "^0.9.54"
+PyGetWindow = "^0.0.9"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+pytest-mock = "^3.12.0"
+black = "^24.0.0"
+ruff = "^0.2.0"
+mypy = "^1.8.0"
+coverage = "^7.4.0"
 
 [tool.poetry.scripts]
 edith = "edith.cli:app"

@@ -25,7 +25,7 @@ class Assistant:
         if text:
             console.print(f"[bold cyan]You:[/bold cyan] {text}")
             state.is_processing = True
-            orchestrator.process_text(text)
+            logger.info(f"Received text: {text} (Processing disabled in legacy CLI)")
             state.is_processing = False
         else:
             logger.info("No speech detected.")

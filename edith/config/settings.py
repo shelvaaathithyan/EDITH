@@ -38,6 +38,7 @@ class Settings(BaseModel):
     ambient_noise_calibration: bool = Field(default=True, description="Auto-calibrate mic for noise")
     record_timeout: int = Field(default=8, description="Max recording time before cutting off")
     silence_timeout: int = Field(default=2, description="Seconds of silence before stopping recording")
+    wake_word_model: str = Field(default="hey_jarvis", description="OpenWakeWord model name or path")
 
     # AI Engine settings
     ai_provider: str = Field(default="ollama", description="LLM provider")
@@ -91,6 +92,7 @@ class Settings(BaseModel):
     ui_height: int = Field(default=600, description="Window height in pixels")
     ui_frameless: bool = Field(default=True, description="Use frameless window")
     ui_on_top: bool = Field(default=True, description="Keep window on top")
+    ui_start_hidden: bool = Field(default=True, description="Start the UI hidden until wake word")
 
     # Timeouts
     planner_retry_count: int = Field(default=2, description="Max planner retries on JSON validation failure")
