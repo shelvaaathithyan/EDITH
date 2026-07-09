@@ -40,9 +40,16 @@ class PermissionManager(IPermissionManager):
         
         for step in plan.steps:
             action = step.arguments.get("action", "")
-            key = f"{step.tool}.{action}" if action else step.tool
+            tool_name = step.tool.lower()
             
-            risk = self._risk_matrix.get(key, RiskLevel.MEDIUM) # Default unknown actions to MEDIUM
+            from edith.sdk.capability import capability_registry
+            cap = capability_registry.get_capability(tool_name)
+            
+            if cap:
+                risk = cap.get_risk(action)
+            else:
+                key = f"{step.tool}.{action}" if action else step.tool
+                risk = self._risk_matrix.get(key, RiskLevel.MEDIUM) # Fallback
             
             if risk.value > highest_risk.value:
                 highest_risk = risk

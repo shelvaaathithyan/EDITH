@@ -50,12 +50,15 @@ def build_app():
     
     # 3. AI & Tools
     planner = Planner(ProviderFactory.get_provider("ollama"))
-    permission = MockPermission()
-    memory = MockMemory()
-    context = MockContext()
+    from edith.core.permission_manager_impl import PermissionManager
+    permission = PermissionManager()
     
-    # 4. Pipeline & Dispatcher (with Dummy Execution)
-    resolver = MockCapabilityResolver(default_executor=None)
+    # 4. Pipeline & Dispatcher
+    from edith.core.resolver import CapabilityResolver
+    from edith.sdk.capability import CapabilityLoader, capability_registry
+    
+    loader = CapabilityLoader(capability_registry)
+    resolver = CapabilityResolver(default_executor=None)
     dispatcher = Dispatcher(resolver, permission, memory, context)
     response_gen = DefaultResponseGenerator()
     
@@ -78,6 +81,7 @@ def build_app():
     bootstrap.register_subsystem(wake_engine)
     bootstrap.register_subsystem(ui_manager)
     bootstrap.register_subsystem(session_controller)
+    bootstrap.register_subsystem(loader)
     
     return orchestrator, ui_manager
 

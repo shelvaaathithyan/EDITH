@@ -1,3 +1,3 @@
-from .browser_capability import browser_capability
+from .browser_capability import BrowserCapability
 
-__all__ = ["browser_capability"]
+__all__ = ["BrowserCapability"]

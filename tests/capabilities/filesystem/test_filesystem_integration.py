@@ -24,6 +24,10 @@ def integration_pipeline():
     from edith.permission.permission_models import RiskLevel, PermissionAction
     policy_engine.policy[RiskLevel.MEDIUM] = PermissionAction.EXECUTE
     
+    from edith.sdk.capability import capability_registry
+    from edith.capabilities.filesystem.filesystem_capability import FilesystemCapability
+    capability_registry.register(FilesystemCapability())
+    
     from edith.permission.permission_manager import permission_manager
     pipeline = Dispatcher(
         resolver=resolver,

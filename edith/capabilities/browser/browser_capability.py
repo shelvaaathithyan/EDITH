@@ -1,93 +1,79 @@
-import time
-from typing import Union
-from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ToolResult
-from edith.utils.logger import logger
-from edith.core.events import event_bus, AppEvent
+from typing import Any, Dict
+import logging
 
-from edith.capabilities.browser.browser_models import BrowserActionArgs
-from edith.capabilities.browser.browser_exceptions import BrowserLaunchError
+from edith.sdk.capability import (
+    BaseCapability,
+    CapabilityManifest,
+    CapabilityResult,
+    CapabilityValidationError
+)
+from edith.core.events import event_bus, AppEvent
 from edith.capabilities.browser.browser_controller import BrowserController
 from edith.capabilities.browser.browser_constants import get_search_url
 from edith.capabilities.browser.browser_utils import is_url, format_url
+from edith.capabilities.browser.browser_manifest import MANIFEST
+from edith.capabilities.browser.browser_models import BrowserActionArgs
 
-class BrowserCapability:
-    """
-    Main interface for the Browser capability.
-    Acts as an Executor for browser-related ExecutionPlans.
-    """
-    def __init__(self):
+logger = logging.getLogger(__name__)
+
+class BrowserCapability(BaseCapability):
+    def get_manifest(self) -> CapabilityManifest:
+        return CapabilityManifest(
+            id=MANIFEST["id"],
+            name=MANIFEST["name"],
+            version=MANIFEST["version"],
+            author=MANIFEST["author"],
+            description=MANIFEST["description"],
+            supported_platforms=MANIFEST["supported_platforms"],
+            dependencies=MANIFEST["dependencies"],
+            supported_actions=MANIFEST["supported_actions"],
+            risk_matrix=MANIFEST["risk_matrix"],
+            required_permissions=MANIFEST["required_permissions"]
+        )
+
+    def _do_initialize(self) -> None:
         self.controller = BrowserController()
-
-    def execute(self, plan: Union[ExecutionPlan, ResolvedExecutionPlan]) -> ToolResult:
-        """Parses the execution plan, runs the browser action, and returns a ToolResult."""
-        if not plan.steps:
-            return ToolResult(success=False, message="No steps provided in the execution plan.")
-            
-        step = plan.steps[0]
-        try:
-            args = BrowserActionArgs(**step.arguments)
-        except Exception as e:
-            logger.error(f"Invalid browser arguments: {e}")
-            return ToolResult(success=False, message=f"I couldn't understand the browser arguments: {e}")
-            
-        action = args.action.lower()
-        browser_req = args.browser.lower() if args.browser else None
-        query = args.query
-
-        start_time = time.time()
         
-        try:
-            if action == 'search':
-                event_bus.publish(AppEvent.BROWSER_SEARCH_STARTED, args.model_dump())
-                
-                # Check if the user said "search github.com" instead of "search github"
-                if query and is_url(query):
-                    target_url = format_url(query)
-                else:
-                    target_url = get_search_url(None, query or "") # Will use default engine
-                    
-                result = self.controller.launch(target_url, browser=browser_req)
-                
-                event_bus.publish(AppEvent.BROWSER_SEARCH_COMPLETED, result)
-                msg = f"Searched for {query} in {result['browser']}." if query else f"Opened search in {result['browser']}."
-                
-            elif action == 'navigate' or action == 'launch':
-                event_bus.publish(AppEvent.BROWSER_NAVIGATION_STARTED, args.model_dump())
-                
-                if query:
-                    target_url = format_url(query) if is_url(query) or action == 'navigate' else get_search_url(None, query)
-                else:
-                    # Just launch default blank or new tab
-                    target_url = "about:blank"
-                    
-                result = self.controller.launch(target_url, browser=browser_req)
-                
-                event_bus.publish(AppEvent.BROWSER_NAVIGATION_COMPLETED, result)
-                if target_url == "about:blank":
-                    msg = f"Opened {result['browser']}."
-                else:
-                    msg = f"Opened {query} in {result['browser']}."
-                    
-            else:
-                return ToolResult(success=False, message=f"Browser action '{action}' is not supported yet.")
+        # Register Actions
+        self.register_action("search", self._action_search)
+        self.register_action("navigate", self._action_navigate)
+        self.register_action("launch", self._action_navigate) # alias
 
-            duration = time.time() - start_time
-            result["duration"] = duration
+    def _action_search(self, args: Dict[str, Any]) -> CapabilityResult:
+        query = args.get("query")
+        browser_req = args.get("browser", "").lower() if args.get("browser") else None
+        
+        event_bus.publish(AppEvent.BROWSER_SEARCH_STARTED, args)
+        
+        if query and is_url(query):
+            target_url = format_url(query)
+        else:
+            target_url = get_search_url(None, query or "")
             
-            return ToolResult(
-                success=True,
-                message=msg,
-                data=result
-            )
-            
-        except BrowserLaunchError as e:
-            logger.error(f"Browser launch failed: {e}")
-            event_bus.publish(AppEvent.BROWSER_LAUNCH_FAILED, str(e))
-            return ToolResult(success=False, message="I couldn't launch the browser due to a system error.")
-        except Exception as e:
-            logger.error(f"Unexpected error in browser capability: {e}")
-            event_bus.publish(AppEvent.BROWSER_LAUNCH_FAILED, str(e))
-            return ToolResult(success=False, message=f"An unexpected error occurred: {e}")
+        result = self.controller.launch(target_url, browser=browser_req)
+        event_bus.publish(AppEvent.BROWSER_SEARCH_COMPLETED, result)
+        
+        msg = f"Searched for {query} in {result.get('browser', 'browser')}." if query else f"Opened search in {result.get('browser', 'browser')}."
+        return CapabilityResult(success=True, capability=self._manifest.id, action="search", message=msg, structured_data=result)
 
-# Singleton instance exported for the resolver
-browser_capability = BrowserCapability()
+    def _action_navigate(self, args: Dict[str, Any]) -> CapabilityResult:
+        query = args.get("query")
+        browser_req = args.get("browser", "").lower() if args.get("browser") else None
+        
+        event_bus.publish(AppEvent.BROWSER_NAVIGATION_STARTED, args)
+        
+        if query:
+            target_url = format_url(query) if is_url(query) or args.get("action") == "navigate" else get_search_url(None, query)
+        else:
+            target_url = "about:blank"
+            
+        result = self.controller.launch(target_url, browser=browser_req)
+        event_bus.publish(AppEvent.BROWSER_NAVIGATION_COMPLETED, result)
+        
+        if target_url == "about:blank":
+            msg = f"Opened {result.get('browser', 'browser')}."
+        else:
+            msg = f"Opened {query} in {result.get('browser', 'browser')}."
+            
+        return CapabilityResult(success=True, capability=self._manifest.id, action="navigate", message=msg, structured_data=result)
+

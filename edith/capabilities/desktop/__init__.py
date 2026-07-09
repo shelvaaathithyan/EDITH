@@ -1,3 +1,3 @@
-from .desktop_capability import desktop_capability
+from .desktop_capability import DesktopCapability
 
-__all__ = ["desktop_capability"]
+__all__ = ["DesktopCapability"]
