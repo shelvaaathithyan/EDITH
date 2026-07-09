@@ -3,6 +3,7 @@ from edith.core.interfaces.context import IContextManager
 from edith.interaction.context.context_store import ContextStore
 from edith.interaction.context.context_resolver import ContextResolver
 from edith.interaction.context.context_models import ContextNode
+from edith.core.events import event_bus, AppEvent
 
 class ContextManager(IContextManager):
     """
@@ -11,6 +12,16 @@ class ContextManager(IContextManager):
     def __init__(self):
         self.store = ContextStore()
         self.resolver = ContextResolver(self.store)
+        
+        # Subscribe to Vision updates
+        event_bus.subscribe(AppEvent.SCREEN_CAPTURED, lambda data: self.update_context({"last_screenshot": data.get("path")}))
+        event_bus.subscribe(AppEvent.OCR_COMPLETED, lambda data: self.update_context({"last_ocr_result": data.get("text")}))
+        event_bus.subscribe(AppEvent.UI_DETECTED, lambda data: self.update_context({"detected_ui_elements": data.get("count")}))
+        event_bus.subscribe(AppEvent.VISION_ANALYZED, lambda data: self.update_context({
+            "last_vision_result": data.get("summary"),
+            "detected_windows": data.get("detected_windows", []),
+            "detected_errors": data.get("detected_errors", [])
+        }))
 
     def update_context(self, context_data: Dict[str, Any]) -> None:
         """
@@ -48,6 +59,18 @@ class ContextManager(IContextManager):
                 node_type = "command"
             elif key in ["last_shell", "terminal_shell"]:
                 node_type = "shell"
+            elif key in ["last_screenshot", "image_path", "screenshot"]:
+                node_type = "screenshot"
+            elif key in ["last_ocr_result", "ocr_text", "detected_text"]:
+                node_type = "ocr_result"
+            elif key in ["last_vision_result", "vision_summary", "summary"]:
+                node_type = "vision_result"
+            elif key in ["detected_windows", "windows"]:
+                node_type = "detected_windows"
+            elif key in ["detected_ui_elements", "ui_elements"]:
+                node_type = "detected_ui_elements"
+            elif key in ["detected_errors", "errors"]:
+                node_type = "detected_errors"
                 
             if node_type:
                 node = ContextNode(type=node_type, value=value, metadata=context_data)

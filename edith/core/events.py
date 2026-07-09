@@ -85,6 +85,16 @@ class AppEvent(Enum):
     MEMORY_EXPIRED = auto()
     MEMORY_SEARCHED = auto()
 
+    # Vision Subsystem
+    SCREEN_CAPTURED = auto()
+    OCR_COMPLETED = auto()
+    VISION_ANALYZED = auto()
+    PDF_PARSED = auto()
+    WINDOW_CAPTURED = auto()
+    IMAGE_CAPTURED = auto()
+    REGION_CAPTURED = auto()
+    UI_DETECTED = auto()
+
 class EventBus:
     def __init__(self):
         self._subscribers: Dict[AppEvent, List[Callable]] = {}
