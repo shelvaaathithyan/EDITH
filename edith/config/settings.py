@@ -59,6 +59,33 @@ class Settings(BaseModel):
         description="Quick site aliases mapping word to URL"
     )
 
+    # Desktop Capability settings
+    app_aliases: dict[str, str] = Field(
+        default={
+            "vscode": "Code.exe",
+            "visual studio code": "Code.exe",
+            "visual studio": "Code.exe",
+            "code": "Code.exe",
+            "cursor": "Cursor.exe",
+            "cursor ai": "Cursor.exe",
+            "spotify": "Spotify.exe",
+            "music": "Spotify.exe",
+            "terminal": "wt.exe",
+            "discord": "Update.exe --processStart Discord.exe",
+            "chrome": "chrome.exe",
+            "edge": "msedge.exe",
+            "firefox": "firefox.exe",
+            "calculator": "calc.exe",
+            "paint": "mspaint.exe",
+            "notepad": "notepad.exe",
+            "command prompt": "cmd.exe",
+            "powershell": "powershell.exe",
+            "file explorer": "explorer.exe",
+            "task manager": "taskmgr.exe"
+        },
+        description="Aliases mapping natural language to executables or commands"
+    )
+
 def load_settings() -> Settings:
     if not CONFIG_FILE.exists():
         default_settings = Settings()

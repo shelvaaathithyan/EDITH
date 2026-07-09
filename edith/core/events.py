@@ -34,6 +34,21 @@ class AppEvent(Enum):
     BROWSER_NAVIGATION_COMPLETED = auto()
     BROWSER_LAUNCH_FAILED = auto()
     
+    # Desktop Capability
+    APPLICATION_LOOKUP_STARTED = auto()
+    APPLICATION_LOOKUP_COMPLETED = auto()
+    APPLICATION_FOUND = auto()
+    APPLICATION_NOT_FOUND = auto()
+    APPLICATION_LAUNCH_STARTED = auto()
+    APPLICATION_LAUNCH_COMPLETED = auto()
+    APPLICATION_ALREADY_RUNNING = auto()
+    APPLICATION_FOCUSED = auto()
+    APPLICATION_MINIMIZED = auto()
+    APPLICATION_MAXIMIZED = auto()
+    APPLICATION_RESTORED = auto()
+    APPLICATION_CLOSED = auto()
+    APPLICATION_ERROR = auto()
+    
     # Permissions
     PERMISSION_REQUESTED = auto()
     PERMISSION_GRANTED = auto()

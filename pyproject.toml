@@ -24,6 +24,8 @@ jsonschema = "^4.20.0"
 httpx = "^0.26.0"
 openwakeword = "^0.6.0"
 pywebview = "^5.0.0"
+psutil = "^6.0.0"
+pywin32 = "^306"
 
 [tool.poetry.scripts]
 edith = "edith.cli:app"

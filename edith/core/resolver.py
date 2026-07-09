@@ -15,13 +15,23 @@ class CapabilityResolver:
         
         # Check if the tool is "browser" and if we have a registered browser capability
         # For now we will handle this explicitly, but later we should use a generic registry
-        if plan.steps and plan.steps[0].tool.lower() == "browser":
+        tool_name = plan.steps[0].tool.lower() if plan.steps else ""
+        
+        if tool_name == "browser":
             try:
                 from edith.capabilities.browser.browser_capability import browser_capability
                 return browser_capability.execute(plan)
             except ImportError as e:
                 logger.error(f"Failed to load browser capability: {e}")
                 return ToolResult(success=False, message="Browser capability is not installed or failed to load.")
+                
+        if tool_name == "desktop":
+            try:
+                from edith.capabilities.desktop.desktop_capability import desktop_capability
+                return desktop_capability.execute(plan)
+            except ImportError as e:
+                logger.error(f"Failed to load desktop capability: {e}")
+                return ToolResult(success=False, message="Desktop capability is not installed or failed to load.")
         
         if self.default_executor:
             return self.default_executor.execute(plan)
