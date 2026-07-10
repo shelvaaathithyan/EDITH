@@ -20,7 +20,7 @@ class VoiceSessionController:
         
     def _on_wake_detected(self, data=None):
         """
-        Triggered by the Wake Engine.
+        Triggered by the Wake Engine or PTT Controller.
         We run the wake/listen sequence in a background thread so we don't block the EventBus.
         """
         if self._is_active:
@@ -28,13 +28,18 @@ class VoiceSessionController:
             return
             
         self._is_active = True
-        threading.Thread(target=self._run_session, daemon=True, name="VoiceSessionThread").start()
+        is_ptt = (data == "PTT")
+        threading.Thread(target=self._run_session, args=(is_ptt,), daemon=True, name="VoiceSessionThread").start()
 
-    def _run_session(self):
+    def _run_session(self, is_ptt=False):
         try:
             logger.info("Voice Session Started.")
             # wake() plays sound, says "Yes?", and returns transcribed text
-            transcription = self.voice.wake()
+            # ptt_wake() just records without speaking "Yes?"
+            if is_ptt:
+                transcription = self.voice.ptt_wake()
+            else:
+                transcription = self.voice.wake()
             
             if transcription and transcription.strip():
                 logger.info(f"Session sending transcription to orchestrator: '{transcription}'")

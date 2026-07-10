@@ -3,107 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EDITH Control Center</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <title>EDITH Developer Control Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Performance HUD -->
+    <header class="hud">
+        <div class="hud-item"><span>CPU</span> <strong id="hud-cpu">--%</strong></div>
+        <div class="hud-item"><span>RAM</span> <strong id="hud-ram">-- MB</strong></div>
+        <div class="hud-item"><span>THREADS</span> <strong id="hud-threads">--</strong></div>
+        <div class="hud-item"><span>PLANNER</span> <strong id="hud-planner">-- ms</strong></div>
+        <div class="hud-item"><span>WHISPER</span> <strong id="hud-whisper">-- ms</strong></div>
+        <div class="hud-item"><span>PIPELINE</span> <strong id="hud-pipeline">-- ms</strong></div>
+        <div class="hud-item"><span>VISION</span> <strong>-- ms</strong></div>
+        <div class="hud-item"><span>SPOTIFY</span> <strong>-- ms</strong></div>
+        <div class="hud-item"><span>FPS</span> <strong>--</strong></div>
+        <div class="hud-spacer"></div>
+        <div class="hud-item dev-mode-toggle">
+            <label for="dev-mode-switch">Developer Mode</label>
+            <input type="checkbox" id="dev-mode-switch">
+        </div>
+    </header>
+
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
-            <div class="logo">EDITH <span>v1.0</span></div>
+            <div class="logo">EDITH <span class="badge healthy">v2.0</span></div>
             <ul class="nav-links">
-                <li class="active" data-tab="status">Status</li>
-                <li data-tab="health">System Health</li>
-                <li data-tab="telemetry">Telemetry</li>
-                <li data-tab="events">Event Stream</li>
-                <li data-tab="memory">Memory Store</li>
-                <li data-tab="context">Interaction Context</li>
+                <li class="active" data-tab="pipeline">🧠 Pipeline Inspector</li>
+                <li data-tab="voice">🎤 Voice Monitor</li>
+                <li data-tab="capabilities">⚡ Capabilities</li>
+                <li data-tab="traces">📋 Execution Traces</li>
+                <li data-tab="events">📝 Event Timeline</li>
+                <li data-tab="memory">🗂 Memory Viewer</li>
+                <li data-tab="context">🧩 Interaction Context</li>
+                <li data-tab="settings">⚙ Settings</li>
+                <li data-tab="console" class="dev-only" style="display:none;">Debug Console</li>
             </ul>
         </nav>
 
         <!-- Main Content Area -->
         <main class="content">
-            <!-- 1. Status Tab -->
-            <section id="tab-status" class="tab-pane active">
-                <div class="orb-container">
-                    <div id="ai-orb" class="orb state-ready"></div>
-                    <div id="pulse-ring" class="pulse"></div>
-                </div>
-                <div class="status-header">
-                    <h1 id="status-text">System Ready</h1>
-                    <p id="sub-text">Awaiting Wake Word</p>
+            
+            <!-- 1. Pipeline Inspector Tab -->
+            <section id="tab-pipeline" class="tab-pane active">
+                <div class="header-with-actions">
+                    <h2>Runtime Pipeline</h2>
+                    <div class="investigation-toggle">
+                        <input type="checkbox" id="investigation-mode" checked>
+                        <label for="investigation-mode">Investigation Mode</label>
+                    </div>
                 </div>
                 
-                <div class="recent-pipeline panel">
-                    <h3>Recent Pipeline Execution</h3>
-                    <div id="pipeline-timeline" class="timeline">No recent activity.</div>
+                <div class="pipeline-container">
+                    <div class="pipeline-stage" id="stage-wake">
+                        <div class="stage-icon">W</div>
+                        <div class="stage-info">
+                            <h3>Wake Engine</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-recording">
+                        <div class="stage-icon">🎤</div>
+                        <div class="stage-info">
+                            <h3>Voice Recording</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-stt">
+                        <div class="stage-icon">S</div>
+                        <div class="stage-info">
+                            <h3>Speech Recognition</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-planner">
+                        <div class="stage-icon">🧠</div>
+                        <div class="stage-info">
+                            <h3>Planner</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-resolver">
+                        <div class="stage-icon">⚡</div>
+                        <div class="stage-info">
+                            <h3>Capability Resolver</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-capability">
+                        <div class="stage-icon">🛠</div>
+                        <div class="stage-info">
+                            <h3>Capability</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-generator">
+                        <div class="stage-icon">G</div>
+                        <div class="stage-info">
+                            <h3>Response Generator</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
+                    <div class="pipeline-arrow">↓</div>
+
+                    <div class="pipeline-stage" id="stage-tts">
+                        <div class="stage-icon">🔊</div>
+                        <div class="stage-info">
+                            <h3>TTS</h3>
+                            <span class="status waiting">Waiting</span>
+                        </div>
+                        <div class="stage-error" style="display:none;"></div>
+                    </div>
                 </div>
             </section>
 
-            <!-- 2. Health Tab -->
-            <section id="tab-health" class="tab-pane">
-                <h2>System Health Dashboard</h2>
-                <div class="health-summary">
-                    Overall Status: <span id="health-overall" class="badge">Loading...</span>
-                </div>
+            <!-- 2. Voice Monitor Tab -->
+            <section id="tab-voice" class="tab-pane">
+                <h2>Voice Monitor</h2>
                 <div class="grid-layout">
                     <div class="panel">
-                        <h3>Subsystems</h3>
-                        <table id="health-subsystems-table">
-                            <thead><tr><th>Name</th><th>Status</th><th>Latency (ms)</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
+                        <h3>Microphone Level</h3>
+                        <div class="audio-visualizer" id="audio-viz">
+                            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                        </div>
+                        <div class="stats-grid mt-4">
+                            <div class="stat-box">
+                                <span class="label">State</span>
+                                <strong id="voice-state" class="value">Idle</strong>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Wake Confidence</span>
+                                <strong id="voice-wake-conf" class="value">--%</strong>
+                            </div>
+                        </div>
                     </div>
                     <div class="panel">
-                        <h3>Capabilities</h3>
-                        <table id="health-capabilities-table">
-                            <thead><tr><th>Capability ID</th><th>Status</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
+                        <h3>Last Recognition</h3>
+                        <div class="recognized-text" id="voice-last-text">"..."</div>
+                        <div class="stats-grid mt-4">
+                            <div class="stat-box">
+                                <span class="label">Confidence</span>
+                                <strong id="voice-stt-conf" class="value">--%</strong>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Processing Time</span>
+                                <strong id="voice-stt-time" class="value">-- ms</strong>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <!-- 3. Telemetry Tab -->
-            <section id="tab-telemetry" class="tab-pane">
-                <h2>Latest Telemetry Metrics</h2>
-                <div class="panel">
-                    <table id="telemetry-table">
-                        <thead><tr><th>Metric</th><th>Duration (s)</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
+            <!-- 3. Capabilities Tab -->
+            <section id="tab-capabilities" class="tab-pane">
+                <h2>Loaded Capabilities</h2>
+                <div class="capabilities-grid" id="capabilities-container">
+                    <!-- Cards injected by JS -->
                 </div>
             </section>
 
-            <!-- 4. Events Tab -->
+            <!-- 4. Execution Traces Tab -->
+            <section id="tab-traces" class="tab-pane">
+                <h2>Execution Traces</h2>
+                <div class="traces-list" id="traces-container">
+                    <!-- Collapsible traces injected by JS -->
+                </div>
+            </section>
+
+            <!-- 5. Event Timeline Tab -->
             <section id="tab-events" class="tab-pane">
-                <h2>Live Event Stream</h2>
-                <div class="panel console-panel">
-                    <div id="event-stream" class="console-output"></div>
+                <div class="header-with-actions">
+                    <h2>Event Timeline</h2>
+                    <button class="btn" id="btn-clear-events">Clear</button>
+                </div>
+                <div class="timeline" id="event-timeline">
+                    <!-- Timeline items injected by JS -->
                 </div>
             </section>
 
-            <!-- 5. Memory Tab -->
+            <!-- 6. Memory Viewer Tab -->
             <section id="tab-memory" class="tab-pane">
-                <h2>Long-Term Memory Store</h2>
-                <div class="panel">
-                    <table id="memory-table">
-                        <thead><tr><th>Category</th><th>Title</th><th>Value</th><th>Confidence</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
+                <h2>Memory Viewer</h2>
+                <div class="memory-grid" id="memory-container">
+                    <!-- Memory cards injected by JS -->
                 </div>
             </section>
 
-            <!-- 6. Context Tab -->
+            <!-- Interaction Context Tab -->
             <section id="tab-context" class="tab-pane">
-                <h2>Short-Term Interaction Context</h2>
-                <div class="panel console-panel">
-                    <pre id="context-json">{}</pre>
+                <h2>Interaction Context</h2>
+                <div class="context-grid" id="context-container">
+                    <!-- Context cards injected by JS -->
                 </div>
             </section>
+
+            <!-- Settings Tab -->
+            <section id="tab-settings" class="tab-pane">
+                <h2>Settings</h2>
+                <div class="settings-container">
+                    <div class="panel">
+                        <h3>Voice Settings</h3>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label>Input Mode</label>
+                                <select disabled>
+                                    <option>Both Enabled (Wake Word + PTT)</option>
+                                    <option>Wake Word Only</option>
+                                    <option>Push To Talk Only</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Wake Threshold</label>
+                                <input type="range" min="0" max="100" value="50" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label>Recording Timeout (s)</label>
+                                <input type="number" value="10" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label>Silence Timeout (s)</label>
+                                <input type="number" value="2" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label>Microphone Device</label>
+                                <select disabled><option>Default System Mic</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Whisper Model</label>
+                                <select disabled><option>base</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Compute Backend</label>
+                                <select disabled><option>CUDA (float16)</option><option>CPU (int8)</option></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel mt-4">
+                        <h3>Developer Settings</h3>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label>Dark Mode</label>
+                                <input type="checkbox" checked disabled>
+                            </div>
+                            <div class="form-group">
+                                <label>Wake Engine</label>
+                                <select disabled><option>OpenWakeWord</option></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. Debug Console (Dev Mode Only) -->
+            <section id="tab-console" class="tab-pane">
+                <h2>Debug Console</h2>
+                <div class="console-panel" id="debug-console">
+                    <!-- Logs injected by JS -->
+                </div>
+            </section>
+
         </main>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="app.js"></script>
 </body>

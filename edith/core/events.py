@@ -19,11 +19,21 @@ class AppEvent(Enum):
     PIPELINE_STARTED = auto()
     PIPELINE_COMPLETED = auto()
     REQUEST_COMPLETED = auto()
+    STT_STARTED = auto()
+    STT_FINISHED = auto()
+    TTS_STARTED = auto()
+    TTS_FINISHED = auto()
+    CAPABILITY_RESOLVER_STARTED = auto()
+    CAPABILITY_RESOLVER_FINISHED = auto()
+    GENERATOR_STARTED = auto()
+    GENERATOR_FINISHED = auto()
     
     # Execution
     EXECUTION_STARTED = auto()
     EXECUTION_COMPLETED = auto()
     TOOL_EXECUTED = auto()
+    CAPABILITY_STARTED = auto()
+    CAPABILITY_FINISHED = auto()
     
     # Browser Capability
     BROWSER_LAUNCH_STARTED = auto()

@@ -7,6 +7,7 @@ from typing import Optional
 from edith.utils.logger import logger
 from edith.config.settings import settings
 from edith.voice.microphone import microphone
+from edith.core.events import event_bus, AppEvent
 import numpy as np
 
 class AudioProcessor:
@@ -61,11 +62,13 @@ class STTProvider:
             logger.debug(f"[Microphone] sample_rate: {audio_data.sample_rate}Hz, sample_width: {audio_data.sample_width} bytes, duration: {duration:.2f}s")
             
             # Diagnostics - Audio
+            event_bus.publish(AppEvent.STT_STARTED)
             start_convert = time.time()
             audio_np = self.processor.to_whisper_numpy(audio_data)
             logger.debug(f"[Audio] normalized: True, resampled: 16000Hz, channels: 1 (mono), prep_time: {time.time() - start_convert:.3f}s")
             
             # Diagnostics - Whisper
+            logger.info("📝 Sending audio to Whisper")
             start_infer = time.time()
             segments_generator, info = self.model.transcribe(audio_np, beam_size=5)
             segments = list(segments_generator)
@@ -78,21 +81,25 @@ class STTProvider:
                 return None
             
             text = "".join([segment.text for segment in segments]).strip()
+            logger.info(f"📝 Whisper Response: {text}")
             
             # Filter out common whisper hallucinations for silence
             hallucinations = ["Thanks for watching!", "Subtitles by Amara.org", "Thank you.", ""]
             if text in hallucinations or len(text) < 2:
                 logger.debug(f"[Whisper] Hallucination filtered: '{text}'")
+                event_bus.publish(AppEvent.STT_FINISHED, None)
                 return None
                 
+            event_bus.publish(AppEvent.STT_FINISHED, text)
             return text
 
         except Exception as e:
             logger.error(f"STT Transcription Error: {e}")
+            event_bus.publish(AppEvent.STT_FINISHED, None)
             return None
 
-    def listen(self) -> Optional[str]:
-        """Listens to the microphone and returns the transcribed text."""
+    def capture_audio(self, ptt_mode: bool = False) -> Optional[sr.AudioData]:
+        """Captures audio from the microphone and returns AudioData."""
         if microphone.is_locked:
             logger.debug("Microphone is currently locked (EDITH is likely speaking).")
             return None
@@ -105,27 +112,57 @@ class STTProvider:
                     logger.debug("Calibrating for ambient noise...")
                     self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 
-                try:
-                    # Check lock again right before listening just to be safe
-                    if microphone.is_locked:
+                # Check lock again right before listening just to be safe
+                if microphone.is_locked:
+                    return None
+                    
+                import time
+                start_time = time.time()
+                logger.info("🎙 Recording Started")
+                
+                if ptt_mode:
+                    import keyboard
+                    logger.info("🎙 PTT Mode: Recording strictly until '7' is released...")
+                    frames = []
+                    # Clear existing frames from stream buffer
+                    source.stream.read(source.CHUNK)
+                    while keyboard.is_pressed('7'):
+                        buffer = source.stream.read(source.CHUNK)
+                        frames.append(buffer)
+                    audio_data = sr.AudioData(b"".join(frames), source.SAMPLE_RATE, source.SAMPLE_WIDTH)
+                else:
+                    try:
+                        audio_data = self.recognizer.listen(
+                            source, 
+                            timeout=settings.silence_timeout, 
+                            phrase_time_limit=settings.record_timeout
+                        )
+                    except sr.WaitTimeoutError:
                         return None
                         
-                    audio_data = self.recognizer.listen(
-                        source, 
-                        timeout=settings.silence_timeout, 
-                        phrase_time_limit=settings.record_timeout
-                    )
-                    
-                    return self.transcribe(audio_data)
+                duration = time.time() - start_time
+                bytes_captured = len(audio_data.frame_data)
+                logger.info("🎙 Recording Finished")
+                logger.info(f"   Duration: {duration:.2f}s")
+                logger.info(f"   Bytes Captured: {bytes_captured}")
+                logger.info(f"   Sample Rate: {audio_data.sample_rate}Hz")
+                logger.info(f"   Channels: 1 (Mono)")
+                
+                return audio_data
 
-                except sr.WaitTimeoutError:
-                    return None
         except OSError as e:
             logger.error(f"Microphone access error: {e}")
             return None
         except Exception as e:
             logger.error(f"STT Error: {e}")
             return None
+
+    def listen(self, ptt_mode: bool = False) -> Optional[str]:
+        """Captures audio and immediately transcribes it."""
+        audio_data = self.capture_audio(ptt_mode=ptt_mode)
+        if audio_data:
+            return self.transcribe(audio_data)
+        return None
 
     def listen_stream(self):
         """

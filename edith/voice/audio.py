@@ -1,6 +1,7 @@
 import sounddevice as sd
 import soundfile as sf
 import threading
+import numpy as np
 from typing import Optional
 from edith.utils.logger import logger
 from edith.config.settings import settings
@@ -18,10 +19,14 @@ class AudioPlayer:
             if settings.volume != 1.0:
                 data = data * settings.volume
 
+            # Ensure data is float32 to prevent sounddevice dtype mismatch exceptions
+            data = np.asarray(data, dtype=np.float32)
+
             with self._lock:
                 self._current_stream = sd.OutputStream(
                     samplerate=fs, 
-                    channels=data.ndim if len(data.shape) > 1 else 1
+                    channels=data.ndim if len(data.shape) > 1 else 1,
+                    dtype=np.float32
                 )
                 self._current_stream.start()
 

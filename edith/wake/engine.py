@@ -113,7 +113,7 @@ class WakeEngine:
                     if score > self.sensitivity:
                         logger.info(f"Wake word detected! ({mdl}: {score})")
                         
-                        # Fire global event
+                        logger.info("🎤 Wake Word Detected")
                         event_bus.publish(AppEvent.WAKE_WORD_DETECTED)
                         
                         # Sleep briefly to prevent multiple triggers for the same utterance

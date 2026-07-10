@@ -40,7 +40,9 @@ class ExecutionStage(PipelineStage):
         
         if isinstance(plan, ResolvedExecutionPlan) or getattr(plan, "steps", None):
             event_bus.publish(AppEvent.EXECUTION_STARTED, plan)
+            event_bus.publish(AppEvent.CAPABILITY_RESOLVER_STARTED, plan)
             result = self.resolver.resolve_and_execute(plan)
+            event_bus.publish(AppEvent.CAPABILITY_RESOLVER_FINISHED, result)
             context.execution_result = result
             
             # Extract ToolResult data to the global context

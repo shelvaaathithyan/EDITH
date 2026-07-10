@@ -35,6 +35,7 @@ mss = "^9.0.0"
 numpy = "^1.26.0"
 PyAutoGUI = "^0.9.54"
 PyGetWindow = "^0.0.9"
+keyboard = "^0.13.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

@@ -159,6 +159,7 @@ class Orchestrator:
         # 1. Planning with Memory Retrieval
         self.telemetry.start("planner_duration")
         self.state_machine.transition(AppState.PLANNING)
+        logger.info(f"🧠 Planner Input: {text}")
         event_bus.publish(AppEvent.PLANNER_STARTED, text)
         
         # Retrieval Pipeline: Interaction Context -> Long-Term Memory
@@ -193,6 +194,7 @@ class Orchestrator:
         if not context.halt_pipeline:
             self.telemetry.start("pipeline_duration")
             self.state_machine.transition(AppState.EXECUTING)
+            logger.info("⚙ Capability Execution")
             self.dispatcher.dispatch(context)
             self.telemetry.end("pipeline_duration")
             
@@ -203,7 +205,9 @@ class Orchestrator:
         self.state_machine.transition(AppState.RESPONDING)
         # Only generate a response if one wasn't explicitly set (like in cancellation)
         if not context.final_response:
+            event_bus.publish(AppEvent.GENERATOR_STARTED)
             final_text = self.response_gen.generate(context)
+            event_bus.publish(AppEvent.GENERATOR_FINISHED, final_text)
             context.final_response = final_text
         else:
             final_text = context.final_response
@@ -211,10 +215,11 @@ class Orchestrator:
         # 4. Voice Output
         if final_text:
             self.telemetry.start("voice_duration")
+            logger.info("🔊 TTS Started")
             self.voice.speak(final_text)
             self.telemetry.end("voice_duration")
             
-        logger.info(f"Request complete. Telemetry: {self.telemetry.get_metrics()}")
+        logger.info(f"✅ Pipeline Complete. Telemetry: {self.telemetry.get_metrics()}")
         
         event_bus.publish(AppEvent.REQUEST_COMPLETED, {
             "context": context,

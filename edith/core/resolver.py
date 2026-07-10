@@ -3,6 +3,7 @@ from edith.ai.models import ExecutionPlan, ResolvedExecutionPlan, ToolResult
 from edith.core.interfaces.executor import IToolExecutor
 from edith.utils.logger import logger
 from edith.sdk.capability import capability_registry, CapabilityResult
+from edith.core.events import event_bus, AppEvent
 
 class CapabilityResolver:
     def __init__(self, default_executor: Optional[IToolExecutor] = None):
@@ -19,7 +20,9 @@ class CapabilityResolver:
         capability = capability_registry.get_capability(tool_name)
         if capability:
             # Execute through the SDK capability
+            event_bus.publish(AppEvent.CAPABILITY_STARTED, tool_name)
             cap_result: CapabilityResult = capability.execute(plan)
+            event_bus.publish(AppEvent.CAPABILITY_FINISHED, cap_result)
             # Map SDK CapabilityResult back to core ToolResult
             return ToolResult(
                 success=cap_result.success,

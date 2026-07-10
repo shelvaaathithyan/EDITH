@@ -10,13 +10,34 @@ from edith.ai.providers.base_provider import LLMProvider
 OLLAMA_API_URL = "http://localhost:11434/api"
 
 class OllamaProvider(LLMProvider):
+    _resolved_model = None
+
     def __init__(self):
-        self.model = settings.ai_model
+        self.model = OllamaProvider._resolved_model or settings.ai_model
         self.timeout = settings.ai_timeout
         self.client = httpx.Client(timeout=self.timeout)
 
+    def _log_http_error(self, e: httpx.HTTPStatusError, payload: dict):
+        logger.error(f"Ollama HTTP Error: {e.response.status_code}")
+        logger.error(f"URL: {e.request.url}")
+        logger.error(f"Method: {e.request.method}")
+        logger.error(f"Request JSON: {payload}")
+        logger.error(f"Response Headers: {e.response.headers}")
+        logger.error(f"Raw Response Body: {e.response.text}")
+        try:
+            logger.error(f"Parsed JSON: {e.response.json()}")
+        except Exception:
+            pass
+
     def initialize(self):
-        logger.info(f"Initializing Ollama Provider with model: {self.model}")
+        logger.info("Initializing Ollama Provider...")
+        logger.info(f"Configured Base URL: {OLLAMA_API_URL}")
+        logger.info(f"Configured Endpoint: {OLLAMA_API_URL}/generate")
+        logger.info(f"Configured Model: {self.model}")
+        logger.info(f"Configured Timeout: {self.timeout}s")
+        logger.info(f"Configured Temperature: {settings.ai_temperature}")
+        logger.info(f"Configured Max Tokens: {settings.ai_max_tokens}")
+        
         health = self.health_check()
         if health.status != "healthy":
             if health.error == "Model missing":
@@ -38,13 +59,24 @@ class OllamaProvider(LLMProvider):
             }
         }
         
+        logger.info(f"Configured Model: {settings.ai_model}")
+        logger.info(f"Resolved Model: {OllamaProvider._resolved_model}")
+        logger.info(f"Request Model: {self.model}")
+        logger.debug(f"POST URL: {OLLAMA_API_URL}/generate")
+        logger.debug(f"Headers: {self.client.headers}")
+        logger.debug(f"JSON Payload: {payload}")
+        logger.debug(f"Prompt Length: {len(user_prompt)}")
+        logger.debug(f"System Prompt Length: {len(system_prompt)}")
+        
         try:
             response = self.client.post(f"{OLLAMA_API_URL}/generate", json=payload)
             response.raise_for_status()
             data = response.json()
-            # We can log latency here or let Planner handle metadata
             return data.get("response", "")
             
+        except httpx.HTTPStatusError as e:
+            self._log_http_error(e, payload)
+            raise ProviderError(f"Ollama HTTP {e.response.status_code} Error: {e.response.text}")
         except httpx.RequestError as e:
             logger.error(f"Ollama connection error: {e}")
             raise ProviderError(f"Failed to connect to Ollama: {e}")
@@ -64,11 +96,18 @@ class OllamaProvider(LLMProvider):
             }
         }
         
+        logger.info(f"Configured Model: {settings.ai_model}")
+        logger.info(f"Resolved Model: {OllamaProvider._resolved_model}")
+        logger.info(f"Request Model: {self.model}")
+        
         try:
             response = self.client.post(f"{OLLAMA_API_URL}/chat", json=payload)
             response.raise_for_status()
             data = response.json()
             return data.get("message", {}).get("content", "")
+        except httpx.HTTPStatusError as e:
+            self._log_http_error(e, payload)
+            raise ProviderError(f"Ollama chat HTTP {e.response.status_code} Error: {e.response.text}")
         except Exception as e:
             raise ProviderError(f"Ollama chat error: {e}")
 
@@ -91,19 +130,44 @@ class OllamaProvider(LLMProvider):
             r.raise_for_status()
             models = [m.get("name") for m in r.json().get("models", [])]
             
-            # Ollama tags might include :latest, so we do a substring or exact check
-            if any(self.model in m for m in models):
+            logger.info(f"Configured Model: {self.model}")
+            logger.info(f"Installed Models: {models}")
+            
+            if self.model in models:
                 details["model_installed"] = True
+                OllamaProvider._resolved_model = self.model
+                logger.info(f"Resolved Model: {self.model}")
             else:
-                return HealthStatus(
-                    status="unhealthy", provider="ollama", model=self.model,
-                    error="Model missing", details=details
-                )
+                base_model = self.model.replace(":latest", "")
+                matches = [m for m in models if m.startswith(base_model)]
+                if len(matches) == 1:
+                    self.model = matches[0]
+                    OllamaProvider._resolved_model = self.model
+                    details["model_installed"] = True
+                    logger.info(f"Resolved Model: {self.model}")
+                elif len(matches) > 1:
+                    raise ProviderError(f"Ambiguous model match for '{self.model}'. Found: {matches}. Please specify exact model in settings.")
+                else:
+                    return HealthStatus(
+                        status="unhealthy", provider="ollama", model=self.model,
+                        error="Model missing", details=details
+                    )
                 
             # 3. Inference test
-            test_payload = {"model": self.model, "prompt": "hi", "stream": False, "options": {"num_predict": 2}}
-            self.client.post(f"{OLLAMA_API_URL}/generate", json=test_payload)
-            details["inference_test"] = True
+            test_payload = {"model": self.model, "prompt": "Hello", "stream": False, "options": {"num_predict": 2}}
+            logger.info(f"Running startup inference test against {self.model}...")
+            r = self.client.post(f"{OLLAMA_API_URL}/generate", json=test_payload, timeout=120.0)
+            
+            try:
+                r.raise_for_status()
+                details["inference_test"] = True
+                logger.info("Startup inference test successful.")
+            except httpx.HTTPStatusError as e:
+                self._log_http_error(e, test_payload)
+                return HealthStatus(
+                    status="unhealthy", provider="ollama", model=self.model,
+                    error=f"Inference failed with {e.response.status_code}", details=details
+                )
             
             latency = time.time() - start_time
             return HealthStatus(
@@ -115,6 +179,11 @@ class OllamaProvider(LLMProvider):
             return HealthStatus(
                 status="unhealthy", provider="ollama", model=self.model,
                 error=f"Connection refused: {e}", details=details
+            )
+        except ProviderError as e:
+            return HealthStatus(
+                status="unhealthy", provider="ollama", model=self.model,
+                error=str(e), details=details
             )
         except Exception as e:
             return HealthStatus(

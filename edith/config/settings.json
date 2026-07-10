@@ -30,6 +30,6 @@
     "ai_model": "qwen2.5:latest",
     "ai_temperature": 0.2,
     "ai_max_tokens": 2048,
-    "ai_timeout": 60,
+    "ai_timeout": 120,
     "ui_start_hidden": false
 }

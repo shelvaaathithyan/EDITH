@@ -4,6 +4,8 @@ import webview
 from edith.utils.logger import logger
 from edith.core.events import event_bus, AppEvent
 from edith.core.state_machine import AppState
+import psutil
+import json
 
 class UIBridge:
     """
@@ -47,6 +49,14 @@ class UIBridge:
         # Telemetry is request-scoped; we expose the last snapshot via event data
         return getattr(self, '_last_telemetry', {})
 
+    def get_system_metrics(self):
+        process = psutil.Process()
+        return {
+            "cpu_percent": psutil.cpu_percent(interval=None),
+            "ram_mb": process.memory_info().rss / (1024 * 1024),
+            "thread_count": process.num_threads()
+        }
+
     def get_event_log(self):
         """Returns recent events from the Event Bus."""
         return getattr(self, '_event_log', [])
@@ -65,10 +75,12 @@ class UIManager:
 
     def initialize(self):
         """Lifecycle init"""
-        # Subscribe to events
-        event_bus.subscribe(AppEvent.WAKE_WORD_DETECTED, self._on_wake)
-        event_bus.subscribe(AppEvent.STATE_CHANGED, self._on_state_change)
-        event_bus.subscribe(AppEvent.REQUEST_COMPLETED, self._on_request_completed)
+        # Subscribe to ALL events to forward to JS
+        for event_type in AppEvent:
+            # We use a closure or default arg to capture the event_type
+            def make_handler(et=event_type):
+                return lambda data=None: self._on_any_event(et, data)
+            event_bus.subscribe(event_type, make_handler())
         
     def start(self):
         """
@@ -83,16 +95,17 @@ class UIManager:
         from edith.config.settings import settings
         logger.info(f"Resolved HTML path: {self.index_html}")
         self.window = webview.create_window(
-            'EDITH', 
+            'EDITH Developer Control Center v2.0', 
             url=self.index_html,
             js_api=self.bridge,
-            width=settings.ui_width,
-            height=settings.ui_height,
-            frameless=settings.ui_frameless,
+            width=1600,
+            height=950,
+            min_size=(1200, 750),
+            frameless=False,  # User wants a desktop IDE feel, standard window frame is fine unless specified
             easy_drag=True,
             on_top=settings.ui_on_top,
             hidden=settings.ui_start_hidden,
-            background_color='#000000'
+            background_color='#09090b'
         )
         self.bridge._window = self.window
         logger.info("UI window created.")
@@ -127,50 +140,45 @@ class UIManager:
         self._is_running = False
         self.window = None
 
-    def _on_wake(self, _data=None):
-        """Called when wake word is detected."""
-        if self.window and self._is_running:
-            logger.info("Waking UI...")
-            # Restore and show window
-            self.window.restore()
-            self.window.show()
-
-    def _on_state_change(self, state: AppState):
-        """Push state transitions to the web frontend."""
-        if self.window and self._is_running:
-            try:
-                # Call JS function updateState(newState)
-                self.window.evaluate_js(f"if (window.updateState) window.updateState('{state.name}');")
-            except Exception as e:
-                logger.debug(f"Failed to push state to UI: {e}")
-
-    def _on_request_completed(self, data: dict):
-        """Pushes debug information to the frontend."""
+    def _on_any_event(self, event_type: AppEvent, data: any):
+        """Generic event forwarder to JS."""
         if not self.window or not self._is_running:
             return
             
-        import json
-        context = data.get("context")
-        telemetry = data.get("telemetry", {})
-        
-        if not context:
-            return
-            
-        planner_resp = context.planner_response
-        
-        payload = {
-            "transcription": context.user_input,
-            "goal": planner_resp.goal if planner_resp else "N/A",
-            "type": planner_resp.type if planner_resp else "N/A",
-            "confidence": f"{planner_resp.confidence:.2f}" if planner_resp else "N/A",
-            "latency": round(telemetry.get("planner_duration", 0), 2),
-            "pipeline_duration": round(telemetry.get("total_request_duration", 0), 2),
-            "response": context.final_response or "N/A",
-            "json_dump": planner_resp.model_dump_json(indent=2) if planner_resp else "{}"
+        # Handle specific native wake behavior
+        if event_type == AppEvent.WAKE_WORD_DETECTED:
+            try:
+                self.window.restore()
+                self.window.show()
+            except Exception:
+                pass
+                
+        # Serialize data
+        payload = {}
+        try:
+            if data is not None:
+                if hasattr(data, "model_dump"):
+                    payload = data.model_dump(mode='json')
+                elif hasattr(data, "to_dict"):
+                    payload = data.to_dict()
+                elif isinstance(data, dict):
+                    # stringify non-serializable items
+                    payload = {k: str(v) if not isinstance(v, (int, float, str, bool, type(None))) else v for k, v in data.items()}
+                else:
+                    payload = {"value": str(data)}
+        except Exception:
+            payload = {"error": "unserializable"}
+
+        # Add timestamp and format
+        import time
+        event_obj = {
+            "time": time.strftime("%H:%M:%S"),
+            "event": event_type.name,
+            "data": payload
         }
         
         try:
-            escaped_json = json.dumps(payload).replace("'", "\\'")
-            self.window.evaluate_js(f"if (window.updateDebug) window.updateDebug('{escaped_json}');")
+            escaped_json = json.dumps(event_obj).replace("'", "\\'")
+            self.window.evaluate_js(f"if (window.onAppEvent) window.onAppEvent('{escaped_json}');")
         except Exception as e:
-            logger.error(f"Failed to push debug payload to UI: {e}")
+            logger.debug(f"Failed to push event to UI: {e}")

@@ -6,6 +6,7 @@ from edith.voice.sounds import sound_manager
 from edith.voice.stt import stt
 from edith.voice.scheduler import scheduler
 from edith.voice.providers.factory import VoiceProviderFactory
+from edith.voice.ptt import ptt_controller
 
 class VoiceManager:
     """
@@ -31,6 +32,8 @@ class VoiceManager:
         self._set_state(VoiceState.IDLE)
         tts_provider = VoiceProviderFactory.get_provider()
         scheduler.start(tts_provider)
+        # Start PTT controller in background
+        ptt_controller.start()
 
     def _set_state(self, new_state: VoiceState):
         if self._state != new_state:
@@ -67,19 +70,37 @@ class VoiceManager:
         # which respects the lock by returning None, wait, we don't want it to return None.
         # We can poll the lock or `VoiceState` before calling listen().
         import time
-        # Give scheduler time to pick up the critical message and lock the mic
+        # Wait up to 5 seconds for TTS to finish speaking and release the lock.
+        # This prevents the race condition where `listen` executes while `microphone` is still locked.
+        timeout_time = time.time() + 5.0
         time.sleep(0.1) 
         while self.get_state() == VoiceState.SPEAKING:
+            if time.time() > timeout_time:
+                logger.warning("Wake TTS timeout. Forcing listen.")
+                break
             time.sleep(0.1)
 
         return self.listen()
 
-    def listen(self) -> Optional[str]:
+    def ptt_wake(self) -> Optional[str]:
+        """
+        Handles the Push-to-Talk sequence.
+        Flow: Wake Sound -> Listening (until key release) -> Return text.
+        """
+        sound_manager.play_listening_start()
+        return self.listen(ptt_mode=True)
+
+    def listen(self, ptt_mode: bool = False) -> Optional[str]:
         """Listens for user input via microphone."""
+        import time
         self._set_state(VoiceState.LISTENING)
+        logger.info("🎙 Recording Started")
         event_bus.publish(VoiceEvent.LISTENING_STARTED)
         
-        text = stt.listen()
+        start_time = time.time()
+        text = stt.listen(ptt_mode=ptt_mode)
+        duration = time.time() - start_time
+        logger.info(f"🎙 Recording Finished (duration: {duration:.2f}s)")
         
         event_bus.publish(VoiceEvent.LISTENING_FINISHED, text)
         
