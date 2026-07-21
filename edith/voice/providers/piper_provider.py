@@ -68,25 +68,25 @@ class PiperProvider(BaseTTSProvider):
             if json_path.exists(): os.remove(json_path)
 
     def speak(self, text: str, interruptible: bool = True):
+        logger.info("ENTER PiperProvider.speak()")
         if not self.voice:
             self.initialize()
 
         if not text.strip():
+            logger.info("EXIT PiperProvider.speak() [Empty text]")
             return
 
         if not self._audio_player:
             logger.error("[PiperProvider] No audio_player set, cannot play TTS.")
+            logger.info("EXIT PiperProvider.speak() [No audio player]")
             return
 
         with self._lock:
-            wav_path = None
+            wav_path = "s:/EDITH/temp/last_tts.wav"
             try:
+                os.makedirs(os.path.dirname(wav_path), exist_ok=True)
                 logger.info(f"[PiperProvider] Synthesis START | text='{text[:60]}...' | length={len(text)}")
                 synth_start = time.time()
-
-                # Generate a temporary WAV file
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
-                    wav_path = temp_wav.name
                 
                 # Synthesize text to WAV using Piper
                 with wave.open(wav_path, "wb") as wav_file:
@@ -97,7 +97,28 @@ class PiperProvider(BaseTTSProvider):
                     )
 
                 synth_duration = time.time() - synth_start
-                wav_size = os.path.getsize(wav_path) if wav_path and os.path.exists(wav_path) else 0
+                wav_size = os.path.getsize(wav_path) if os.path.exists(wav_path) else 0
+                
+                # Verify WAV and read properties
+                import soundfile as sf
+                import numpy as np
+                try:
+                    data, fs = sf.read(wav_path)
+                    channels = data.ndim if len(data.shape) > 1 else 1
+                    samples = len(data)
+                    duration = samples / fs
+                    peak_amp = np.max(np.abs(data)) if len(data) > 0 else 0
+                    rms_amp = np.sqrt(np.mean(data**2)) if len(data) > 0 else 0
+                    
+                    logger.info(f"[PiperProvider] WAV VERIFIED | Path: {wav_path} | Size: {wav_size} bytes")
+                    logger.info(f"[PiperProvider] WAV PROPS    | Duration: {duration:.3f}s | Sample Rate: {fs}Hz | Channels: {channels}")
+                    logger.info(f"[PiperProvider] WAV AUDIO    | Samples: {samples} | Peak: {peak_amp:.4f} | RMS: {rms_amp:.4f}")
+                    
+                    if samples == 0 or peak_amp == 0:
+                        logger.error("[PiperProvider] WAV file is SILENT! (Empty or zero amplitude)")
+                except Exception as e:
+                    logger.error(f"[PiperProvider] Failed to verify WAV file: {e}")
+
                 logger.info(f"[PiperProvider] Synthesis END | duration={synth_duration:.3f}s | wav_size={wav_size} bytes")
 
                 # Play the WAV file using sounddevice (this blocks until done)
@@ -109,11 +130,8 @@ class PiperProvider(BaseTTSProvider):
             except Exception as e:
                 logger.error(f"Piper synthesis error: {e}")
             finally:
-                if wav_path and os.path.exists(wav_path):
-                    try:
-                        os.remove(wav_path)
-                    except Exception as e:
-                        logger.error(f"Failed to delete temp WAV {wav_path}: {e}")
+                pass # Do not delete wav_path
+        logger.info("EXIT PiperProvider.speak()")
 
     def interrupt(self):
         if self._audio_player:
