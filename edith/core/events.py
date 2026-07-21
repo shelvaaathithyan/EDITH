@@ -16,6 +16,7 @@ class AppEvent(Enum):
     # Pipeline Events
     PLANNER_STARTED = auto()
     PLANNER_COMPLETED = auto()
+    PLANNER_FAILED = auto()
     PIPELINE_STARTED = auto()
     PIPELINE_COMPLETED = auto()
     REQUEST_COMPLETED = auto()
@@ -23,10 +24,15 @@ class AppEvent(Enum):
     STT_FINISHED = auto()
     TTS_STARTED = auto()
     TTS_FINISHED = auto()
+    TTS_FAILED = auto()
     CAPABILITY_RESOLVER_STARTED = auto()
     CAPABILITY_RESOLVER_FINISHED = auto()
+    CAPABILITY_FAILED = auto()
     GENERATOR_STARTED = auto()
     GENERATOR_FINISHED = auto()
+    GENERATOR_FAILED = auto()
+    RECORDING_STARTED = auto()
+    RECORDING_FINISHED = auto()
     
     # Execution
     EXECUTION_STARTED = auto()

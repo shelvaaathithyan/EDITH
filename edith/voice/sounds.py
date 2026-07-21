@@ -1,12 +1,14 @@
 import threading
 from pathlib import Path
 from edith.config.settings import settings
-from edith.voice.audio import audio_player
 
 # Assume sounds are placed in edith/assets/sounds/
 SOUNDS_DIR = Path("edith/assets/sounds")
 
 class SoundManager:
+    def __init__(self, audio_player):
+        self._audio_player = audio_player
+
     def _play(self, sound_name: str):
         if not settings.enable_sound_effects:
             return
@@ -14,7 +16,7 @@ class SoundManager:
         sound_path = SOUNDS_DIR / f"{sound_name}.wav"
         if sound_path.exists():
             # Play sounds in a background thread so they don't block
-            t = threading.Thread(target=audio_player.play_wav, args=(str(sound_path), True), daemon=True)
+            t = threading.Thread(target=self._audio_player.play_wav, args=(str(sound_path), True), daemon=True)
             t.start()
 
     def play_listening_start(self):
@@ -29,4 +31,4 @@ class SoundManager:
     def play_error(self):
         self._play("error")
 
-sound_manager = SoundManager()
+# NO MODULE-LEVEL SINGLETON — created in build_app()

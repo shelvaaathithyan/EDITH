@@ -1,8 +1,8 @@
 import sys
 import time
+import os
 
 # Ensure s:\EDITH is in python path
-import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from edith.config.settings import settings
@@ -12,17 +12,26 @@ def test_ollama():
     print("=== EDITH Ollama Diagnostic ===")
     
     provider = OllamaProvider()
-    print(f"Checking health...")
-    health = provider.health_check()
+    print(f"Initializing Provider (Resolution & Health Check)...")
     
+    try:
+        provider.initialize()
+    except Exception as e:
+        print(f"\n[FAIL] Initialization Failed: {e}")
+        sys.exit(1)
+        
     print("\n--- Diagnostic Results ---")
+    print(f"Configured Model (from settings): {provider.configured_model}")
+    print(f"Installed Models: {provider.installed_models}")
+    print(f"Resolved Model: {provider.resolved_model}")
+    
+    health = provider.health_check()
     print(f"Ollama Running: {health.details.get('ollama_running')}")
-    print(f"Configured Model (from settings): {settings.ai_model}")
-    print(f"Resolved Model (from provider): {provider.model}")
     print(f"Model Installed: {health.details.get('model_installed')}")
     print(f"Generate Endpoint: {provider.client.base_url}generate (appended to OLLAMA_API_URL)")
     print(f"Inference Test Passed: {health.details.get('inference_test')}")
     print(f"Overall Status: {health.status}")
+    
     if health.error:
         print(f"Error: {health.error}")
         sys.exit(1)

@@ -1,5 +1,7 @@
 import queue
+import time
 import threading
+import traceback
 from typing import Optional
 from edith.utils.logger import logger
 from edith.core.interfaces.voice import IVoiceManager
@@ -13,6 +15,7 @@ from edith.core.models import OrchestrationContext
 from edith.core.lifecycle import BootstrapManager
 from edith.core.interfaces.context import IContextManager
 from edith.memory.memory_manager import MemoryManager
+from edith.ai.models import ErrorResponse, ChatResponse
 
 class Orchestrator:
     def __init__(
@@ -87,7 +90,6 @@ class Orchestrator:
                 self.telemetry.start("total_request_duration")
                 self._handle_request(text)
             except Exception as e:
-                import traceback
                 tb = traceback.format_exc()
                 logger.error(f"Orchestrator unhandled exception: {e}\n{tb}")
                 
@@ -119,7 +121,8 @@ class Orchestrator:
                         self.state_machine._state = AppState.READY
 
     def _handle_request(self, text: str):
-        logger.info(f"Orchestrator processing request: '{text}'")
+        request_start = time.time()
+        logger.info(f"[Orchestrator] ━━━ REQUEST START ━━━ input='{text}'")
         self.state_machine.transition(AppState.UNDERSTANDING)
         
         context = OrchestrationContext(user_input=text)
@@ -156,74 +159,120 @@ class Orchestrator:
                 self._finish_request(context)
                 return
 
-        # 1. Planning with Memory Retrieval
+        # ── 1. PLANNING ──────────────────────────────────────────
         self.telemetry.start("planner_duration")
         self.state_machine.transition(AppState.PLANNING)
-        logger.info(f"🧠 Planner Input: {text}")
+        logger.info(f"[Orchestrator] 🧠 Planner START | input_length={len(text)}")
         event_bus.publish(AppEvent.PLANNER_STARTED, text)
         
-        # Retrieval Pipeline: Interaction Context -> Long-Term Memory
-        self.telemetry.start("context_duration")
-        interaction_context_data = self.context.get_context()
-        self.telemetry.end("context_duration")
-        
-        self.telemetry.start("memory_duration")
-        memories = self.memory.recall(text, limit=5)
-        self.telemetry.end("memory_duration")
-        
-        prompt_with_context = text
-        if interaction_context_data or memories:
-            context_str = "CURRENT CONTEXT:\n"
-            for k, v in interaction_context_data.items():
-                context_str += f"- {k}: {v}\n"
-                
-            if memories:
-                context_str += "\nLONG-TERM MEMORY:\n"
-                for m in memories:
-                    context_str += f"- {m.title}: {m.value} (Confidence: {m.confidence:.2f})\n"
+        try:
+            # Retrieval Pipeline: Interaction Context -> Long-Term Memory
+            self.telemetry.start("context_duration")
+            interaction_context_data = self.context.get_context()
+            self.telemetry.end("context_duration")
+            
+            self.telemetry.start("memory_duration")
+            memories = self.memory.recall(text, limit=5)
+            self.telemetry.end("memory_duration")
+            
+            prompt_with_context = text
+            if interaction_context_data or memories:
+                context_str = "CURRENT CONTEXT:\n"
+                for k, v in interaction_context_data.items():
+                    context_str += f"- {k}: {v}\n"
                     
-            prompt_with_context = f"{context_str}\nUSER REQUEST:\n{text}"
+                if memories:
+                    context_str += "\nLONG-TERM MEMORY:\n"
+                    for m in memories:
+                        context_str += f"- {m.title}: {m.value} (Confidence: {m.confidence:.2f})\n"
+                        
+                prompt_with_context = f"{context_str}\nUSER REQUEST:\n{text}"
+            
+            planner_response = self.planner.plan(prompt_with_context)
+            context.planner_response = planner_response
+            
+            # Check if planner returned an error
+            if isinstance(planner_response.data, ErrorResponse):
+                logger.error(f"[Orchestrator] 🧠 Planner FAILED | error={planner_response.data.message}")
+                event_bus.publish(AppEvent.PLANNER_FAILED, {
+                    "error": planner_response.data.message,
+                    "model": planner_response.metadata.model,
+                    "latency": planner_response.metadata.latency
+                })
+                context.halt_pipeline = True
+            else:
+                planner_latency = planner_response.metadata.latency
+                logger.info(f"[Orchestrator] 🧠 Planner END | type={planner_response.data.type} | latency={planner_latency:.3f}s | model={planner_response.metadata.model}")
+                event_bus.publish(AppEvent.PLANNER_COMPLETED, planner_response)
+                
+        except Exception as e:
+            tb = traceback.format_exc()
+            logger.error(f"[Orchestrator] 🧠 Planner EXCEPTION | error={e}\n{tb}")
+            event_bus.publish(AppEvent.PLANNER_FAILED, {"error": str(e), "traceback": tb})
+            context.planner_response = None
+            context.halt_pipeline = True
+            context.error = e
+        finally:
+            self.telemetry.end("planner_duration")
         
-        planner_response = self.planner.plan(prompt_with_context)
-        context.planner_response = planner_response
-        
-        event_bus.publish(AppEvent.PLANNER_COMPLETED, planner_response)
-        self.telemetry.end("planner_duration")
-        
-        # 2. Dispatch
+        # ── 2. DISPATCH ──────────────────────────────────────────
         if not context.halt_pipeline:
             self.telemetry.start("pipeline_duration")
             self.state_machine.transition(AppState.EXECUTING)
-            logger.info("⚙ Capability Execution")
-            self.dispatcher.dispatch(context)
-            self.telemetry.end("pipeline_duration")
+            logger.info("[Orchestrator] ⚙ Dispatch START")
+            try:
+                self.dispatcher.dispatch(context)
+            except Exception as e:
+                tb = traceback.format_exc()
+                logger.error(f"[Orchestrator] ⚙ Dispatch EXCEPTION | error={e}\n{tb}")
+                context.error = e
+            finally:
+                self.telemetry.end("pipeline_duration")
+            logger.info("[Orchestrator] ⚙ Dispatch END")
             
         self._finish_request(context)
+        
+        total_duration = time.time() - request_start
+        logger.info(f"[Orchestrator] ━━━ REQUEST END ━━━ duration={total_duration:.3f}s")
 
     def _finish_request(self, context: OrchestrationContext):
-        # 3. Response Generation
+        # ── 3. RESPONSE GENERATION ────────────────────────────────
         self.state_machine.transition(AppState.RESPONDING)
         # Only generate a response if one wasn't explicitly set (like in cancellation)
         if not context.final_response:
             event_bus.publish(AppEvent.GENERATOR_STARTED)
-            final_text = self.response_gen.generate(context)
-            event_bus.publish(AppEvent.GENERATOR_FINISHED, final_text)
+            try:
+                final_text = self.response_gen.generate(context)
+                event_bus.publish(AppEvent.GENERATOR_FINISHED, final_text)
+            except Exception as e:
+                logger.error(f"[Orchestrator] Response Generator FAILED: {e}")
+                event_bus.publish(AppEvent.GENERATOR_FAILED, {"error": str(e)})
+                final_text = "I'm sorry, I encountered an error generating a response."
             context.final_response = final_text
         else:
             final_text = context.final_response
         
-        # 4. Voice Output
+        # ── 4. VOICE OUTPUT (TTS) ─────────────────────────────────
         if final_text:
             self.telemetry.start("voice_duration")
-            logger.info("🔊 TTS Started")
-            self.voice.speak(final_text)
-            self.telemetry.end("voice_duration")
+            logger.info(f"[Orchestrator] 🔊 TTS START | text='{final_text[:60]}...'")
+            event_bus.publish(AppEvent.TTS_STARTED, final_text)
+            try:
+                self.voice.speak(final_text)
+                event_bus.publish(AppEvent.TTS_FINISHED, final_text)
+                logger.info("[Orchestrator] 🔊 TTS END")
+            except Exception as e:
+                logger.error(f"[Orchestrator] 🔊 TTS FAILED: {e}")
+                event_bus.publish(AppEvent.TTS_FAILED, {"error": str(e)})
+            finally:
+                self.telemetry.end("voice_duration")
             
-        logger.info(f"✅ Pipeline Complete. Telemetry: {self.telemetry.get_metrics()}")
+        metrics = self.telemetry.get_metrics()
+        logger.info(f"[Orchestrator] ✅ Pipeline Complete | Telemetry: {metrics}")
         
         event_bus.publish(AppEvent.REQUEST_COMPLETED, {
             "context": context,
-            "telemetry": self.telemetry.get_metrics()
+            "telemetry": metrics
         })
         
         self.telemetry.clear()

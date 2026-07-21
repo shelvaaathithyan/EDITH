@@ -56,6 +56,12 @@ class ExecutionStage(PipelineStage):
                     for k, v in result.data.items():
                         update_data[f"last_{k}"] = v
                 self.context_manager.update_context(update_data)
+            elif isinstance(result, ToolResult) and not result.success:
+                logger.warning(f"[Dispatcher] Capability FAILED: {result.message}")
+                event_bus.publish(AppEvent.CAPABILITY_FAILED, {
+                    "tool": plan.steps[0].tool if plan.steps else "unknown",
+                    "message": result.message
+                })
                 
             event_bus.publish(AppEvent.EXECUTION_COMPLETED, result)
 

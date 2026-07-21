@@ -39,6 +39,63 @@ class UIBridge:
         from edith.core.health_dashboard import health_dashboard
         return health_dashboard.get_report_dict()
 
+    def get_runtime_diagnostics(self):
+        """Returns a comprehensive diagnostic dictionary for Phase 11."""
+        # 1. Provider details
+        # The OllamaProvider instance is inside Planner
+        import inspect
+        from edith.ai.planner import Planner
+        from edith.voice.manager import VoiceManager
+        from edith.wake.engine import WakeEngine
+        from edith.voice.stt import STTProvider
+        from edith.core.dispatcher import Dispatcher
+        from edith.sdk.capability import capability_registry
+        from edith.core.health_dashboard import health_dashboard
+        from edith.core.state_machine import AppState
+        from edith.main import build_app
+        
+        # We need to find the live instances.
+        # However, they are all passed to Orchestrator in main.py.
+        # But `health_dashboard` already polls everything.
+        # For provider specific details, let's grab the provider from the health dashboard if possible,
+        # or we just get the health report and augment it.
+        report = health_dashboard.get_report_dict()
+        
+        diagnostics = {
+            "lifecycle": {
+                "planner_initialized": False,
+                "provider_initialized": False
+            },
+            "ollama": {
+                "configured_model": None,
+                "resolved_model": None,
+                "installed_models": [],
+                "inference_test": False
+            },
+            "subsystems": report["subsystems"],
+            "capabilities": report["capabilities"]
+        }
+        
+        # We need to find the Planner instance and OllamaProvider
+        import gc
+        for obj in gc.get_objects():
+            if isinstance(obj, Planner):
+                diagnostics["lifecycle"]["planner_initialized"] = obj._initialized
+                if hasattr(obj, "provider"):
+                    p = obj.provider
+                    diagnostics["lifecycle"]["provider_initialized"] = getattr(p, "_initialized", False)
+                    diagnostics["ollama"]["configured_model"] = getattr(p, "configured_model", None)
+                    diagnostics["ollama"]["resolved_model"] = getattr(p, "resolved_model", None)
+                    diagnostics["ollama"]["installed_models"] = getattr(p, "installed_models", [])
+                break
+
+        # Check inference test from the health dashboard's provider check if available
+        for sub in report["subsystems"]:
+            if sub["name"] == "OllamaProvider":
+                diagnostics["ollama"]["inference_test"] = sub.get("status") == "healthy"
+                
+        return diagnostics
+
     def get_interaction_context(self):
         """Returns the current Interaction Context state."""
         from edith.interaction.context.context_manager import context_manager
@@ -77,7 +134,12 @@ class UIManager:
         """Lifecycle init"""
         # Subscribe to ALL events to forward to JS
         for event_type in AppEvent:
-            # We use a closure or default arg to capture the event_type
+            def make_handler(et=event_type):
+                return lambda data=None: self._on_any_event(et, data)
+            event_bus.subscribe(event_type, make_handler())
+
+        from edith.voice.models import VoiceEvent
+        for event_type in VoiceEvent:
             def make_handler(et=event_type):
                 return lambda data=None: self._on_any_event(et, data)
             event_bus.subscribe(event_type, make_handler())

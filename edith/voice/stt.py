@@ -6,7 +6,6 @@ from faster_whisper import WhisperModel
 from typing import Optional
 from edith.utils.logger import logger
 from edith.config.settings import settings
-from edith.voice.microphone import microphone
 from edith.core.events import event_bus, AppEvent
 import numpy as np
 
@@ -47,12 +46,13 @@ def get_whisper_model(model_size: str = "base") -> WhisperModel:
         return model
 
 class STTProvider:
-    def __init__(self):
+    def __init__(self, microphone_manager=None):
         logger.info("Initializing Whisper STT model...")
         self.model = get_whisper_model("base")
         self.recognizer = sr.Recognizer()
         self.recognizer.dynamic_energy_threshold = True
         self.processor = AudioProcessor()
+        self._microphone = microphone_manager
 
     def transcribe(self, audio_data: sr.AudioData) -> Optional[str]:
         """Transcribes AudioData into text using the Whisper model directly from memory."""
@@ -100,7 +100,7 @@ class STTProvider:
 
     def capture_audio(self, ptt_mode: bool = False) -> Optional[sr.AudioData]:
         """Captures audio from the microphone and returns AudioData."""
-        if microphone.is_locked:
+        if self._microphone and self._microphone.is_locked:
             logger.debug("Microphone is currently locked (EDITH is likely speaking).")
             return None
 
@@ -113,7 +113,7 @@ class STTProvider:
                     self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 
                 # Check lock again right before listening just to be safe
-                if microphone.is_locked:
+                if self._microphone and self._microphone.is_locked:
                     return None
                     
                 import time
@@ -176,4 +176,4 @@ class STTProvider:
                 yield text
         return _generator()
 
-stt = STTProvider()
+# NO MODULE-LEVEL SINGLETON — created in build_app()

@@ -1,7 +1,5 @@
 import typer
 from rich.console import Console
-from edith.core.assistant import assistant
-from edith.voice.manager import voice_manager
 from edith.voice.providers.piper_provider import PiperProvider
 from edith.voice.models import event_bus, VoiceEvent, VoiceState
 from edith.utils.logger import logger
@@ -39,11 +37,10 @@ def setup():
 
 @app.command()
 def start():
-    """Starts a lightweight Voice CLI session (no UI, no orchestrator). For full EDITH run: python edith/main.py"""
-    logger.info("Lightweight Voice CLI Session Started. (For full app, run python edith/main.py)")
-    voice_manager.initialize()
-    assistant.start_session()
-    voice_manager.shutdown()
+    """Starts EDITH. (Alias for running main.py directly)"""
+    from edith.main import main
+    logger.info("Starting EDITH via CLI...")
+    main()
 
 def _setup_registry():
     loader = CapabilityLoader(capability_registry)

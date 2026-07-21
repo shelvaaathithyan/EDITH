@@ -22,6 +22,8 @@ class AudioPlayer:
             # Ensure data is float32 to prevent sounddevice dtype mismatch exceptions
             data = np.asarray(data, dtype=np.float32)
 
+            logger.debug(f"[AudioPlayer] Playing: {file_path} | shape={data.shape} | dtype={data.dtype} | samplerate={fs}")
+
             with self._lock:
                 self._current_stream = sd.OutputStream(
                     samplerate=fs, 
@@ -63,4 +65,4 @@ class AudioPlayer:
                 self._current_stream.close()
                 self._current_stream = None
 
-audio_player = AudioPlayer()
+# NO MODULE-LEVEL SINGLETON — created in build_app()

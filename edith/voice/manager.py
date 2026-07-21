@@ -2,19 +2,22 @@ from typing import Optional, Iterator
 from edith.utils.logger import logger
 from edith.config.settings import settings
 from edith.voice.models import VoiceState, VoiceEvent, VoiceMessage, event_bus
-from edith.voice.sounds import sound_manager
-from edith.voice.stt import stt
-from edith.voice.scheduler import scheduler
 from edith.voice.providers.factory import VoiceProviderFactory
-from edith.voice.ptt import ptt_controller
 
 class VoiceManager:
     """
     Public Voice API for EDITH.
     Frozen interface: initialize, listen, listen_stream, speak, interrupt, stop, shutdown, get_state, wake.
+    All dependencies injected via constructor — no import-time singletons.
     """
-    def __init__(self):
+    def __init__(self, stt_provider, scheduler, sound_manager, ptt_controller, audio_player=None):
         self._state = VoiceState.IDLE
+        self._stt = stt_provider
+        self._scheduler = scheduler
+        self._sound_manager = sound_manager
+        self._ptt_controller = ptt_controller
+        self._audio_player = audio_player
+
         # Subscribe to scheduler events to update our state
         event_bus.subscribe(VoiceEvent.VOICE_STARTED, self._on_voice_started)
         event_bus.subscribe(VoiceEvent.VOICE_STOPPED, self._on_voice_stopped)
@@ -30,10 +33,10 @@ class VoiceManager:
         """Initializes TTS providers and starts the speech scheduler."""
         logger.info("Initializing Voice Manager...")
         self._set_state(VoiceState.IDLE)
-        tts_provider = VoiceProviderFactory.get_provider()
-        scheduler.start(tts_provider)
+        tts_provider = VoiceProviderFactory.get_provider(audio_player=self._audio_player)
+        self._scheduler.start(tts_provider)
         # Start PTT controller in background
-        ptt_controller.start()
+        self._ptt_controller.start()
 
     def _set_state(self, new_state: VoiceState):
         if self._state != new_state:
@@ -50,28 +53,15 @@ class VoiceManager:
         Flow: Wake Phrase -> Wake Sound -> "Yes?" -> Listening -> Return text.
         """
         # Play wake sound and respond immediately
-        sound_manager.play_listening_start()
+        self._sound_manager.play_listening_start()
         
         wake_response = settings.wake_responses[0] if settings.wake_responses else "Yes?"
         
         # High priority so it plays before any other queued speech
-        # It blocks because the scheduler processes it, but wait, speak() queues it.
-        # To make sure we don't start listening while speaking, we rely on the microphone lock.
-        # But wait, we want to play the wake sound, say "Yes?", then start listening.
         self.speak(wake_response, priority="critical")
         
-        # The microphone lock will prevent listen() from recording until the speech finishes.
-        # However, `speak()` is asynchronous via the queue. So `stt.listen()` might run and return None 
-        # because the mic is locked.
-        # So we need to either wait for speech to finish, or just call listen() which will block until it gets audio.
-        # Wait, if stt.listen() is called while mic is locked, it currently immediately returns None.
-        # We need to wait for the speaking to finish if we want to listen *after*.
-        # The simplest way is to listen
-        # which respects the lock by returning None, wait, we don't want it to return None.
-        # We can poll the lock or `VoiceState` before calling listen().
         import time
         # Wait up to 5 seconds for TTS to finish speaking and release the lock.
-        # This prevents the race condition where `listen` executes while `microphone` is still locked.
         timeout_time = time.time() + 5.0
         time.sleep(0.1) 
         while self.get_state() == VoiceState.SPEAKING:
@@ -87,7 +77,7 @@ class VoiceManager:
         Handles the Push-to-Talk sequence.
         Flow: Wake Sound -> Listening (until key release) -> Return text.
         """
-        sound_manager.play_listening_start()
+        self._sound_manager.play_listening_start()
         return self.listen(ptt_mode=True)
 
     def listen(self, ptt_mode: bool = False) -> Optional[str]:
@@ -98,7 +88,7 @@ class VoiceManager:
         event_bus.publish(VoiceEvent.LISTENING_STARTED)
         
         start_time = time.time()
-        text = stt.listen(ptt_mode=ptt_mode)
+        text = self._stt.listen(ptt_mode=ptt_mode)
         duration = time.time() - start_time
         logger.info(f"🎙 Recording Finished (duration: {duration:.2f}s)")
         
@@ -117,14 +107,14 @@ class VoiceManager:
         self._set_state(VoiceState.LISTENING)
         event_bus.publish(VoiceEvent.LISTENING_STARTED)
         
-        iterator = stt.listen_stream()
+        iterator = self._stt.listen_stream()
         
         for text in iterator:
             if text:
                 logger.info(f"Streamed speech recognized: {text}")
             yield text
             
-        event_bus.publish(VoiceEvent.LISTENING_FINISHED, None) # Or pass final text
+        event_bus.publish(VoiceEvent.LISTENING_FINISHED, None)
         self._set_state(VoiceState.IDLE)
 
     def speak(self, text: str, priority: str = "normal", interruptible: bool = True):
@@ -139,7 +129,7 @@ class VoiceManager:
             priority_level = 5
 
         msg = VoiceMessage(text=text, priority=priority, interruptible=interruptible)
-        scheduler.schedule(msg, priority_level)
+        self._scheduler.schedule(msg, priority_level)
 
     def interrupt(self):
         """Interrupts current speech and clears the queue."""
@@ -147,18 +137,17 @@ class VoiceManager:
         self._set_state(VoiceState.INTERRUPTED)
         event_bus.publish(VoiceEvent.INTERRUPTED)
         
-        scheduler.interrupt()
+        self._scheduler.interrupt()
 
         self._set_state(VoiceState.IDLE)
 
     def stop(self):
         """Stops current speech gracefully."""
-        scheduler.stop()
+        self._scheduler.stop()
 
     def shutdown(self):
         """Shuts down the Voice Manager."""
         logger.info("Shutting down Voice Manager...")
         self.stop()
 
-# Export singleton
-voice_manager = VoiceManager()
+# NO MODULE-LEVEL SINGLETON — created in build_app()

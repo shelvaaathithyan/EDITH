@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 import tempfile
 import threading
@@ -9,14 +10,14 @@ from piper.voice import PiperVoice
 from edith.config.settings import settings
 from edith.utils.logger import logger
 from edith.voice.providers.base_provider import BaseTTSProvider
-from edith.voice.audio import audio_player
 
 VOICES_DIR = Path("edith/assets/voices")
 
 class PiperProvider(BaseTTSProvider):
-    def __init__(self):
+    def __init__(self, audio_player=None):
         self.voice = None
         self._lock = threading.Lock()
+        self._audio_player = audio_player
 
     def _get_model_name(self) -> str:
         profile_name = settings.voice_profile
@@ -73,8 +74,16 @@ class PiperProvider(BaseTTSProvider):
         if not text.strip():
             return
 
+        if not self._audio_player:
+            logger.error("[PiperProvider] No audio_player set, cannot play TTS.")
+            return
+
         with self._lock:
+            wav_path = None
             try:
+                logger.info(f"[PiperProvider] Synthesis START | text='{text[:60]}...' | length={len(text)}")
+                synth_start = time.time()
+
                 # Generate a temporary WAV file
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
                     wav_path = temp_wav.name
@@ -87,20 +96,28 @@ class PiperProvider(BaseTTSProvider):
                         syn_config=SynthesisConfig(length_scale=1.0/settings.speech_speed)
                     )
 
+                synth_duration = time.time() - synth_start
+                wav_size = os.path.getsize(wav_path) if wav_path and os.path.exists(wav_path) else 0
+                logger.info(f"[PiperProvider] Synthesis END | duration={synth_duration:.3f}s | wav_size={wav_size} bytes")
+
                 # Play the WAV file using sounddevice (this blocks until done)
-                audio_player.play_wav(wav_path, block=True)
+                play_start = time.time()
+                self._audio_player.play_wav(wav_path, block=True)
+                play_duration = time.time() - play_start
+                logger.info(f"[PiperProvider] Playback END | duration={play_duration:.3f}s")
 
             except Exception as e:
                 logger.error(f"Piper synthesis error: {e}")
             finally:
-                if os.path.exists(wav_path):
+                if wav_path and os.path.exists(wav_path):
                     try:
                         os.remove(wav_path)
                     except Exception as e:
                         logger.error(f"Failed to delete temp WAV {wav_path}: {e}")
 
     def interrupt(self):
-        audio_player.interrupt()
+        if self._audio_player:
+            self._audio_player.interrupt()
 
     def stop(self):
         self.interrupt()

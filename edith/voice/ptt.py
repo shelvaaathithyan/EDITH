@@ -53,4 +53,4 @@ class PTTController:
                 logger.error(f"PTT Controller error: {e}")
                 time.sleep(1)
 
-ptt_controller = PTTController()
+# NO MODULE-LEVEL SINGLETON — created in build_app()

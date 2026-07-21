@@ -1,3 +1,3 @@
-from edith.voice.manager import voice_manager
+from edith.voice.manager import VoiceManager
 
-__all__ = ["voice_manager"]
+__all__ = ["VoiceManager"]

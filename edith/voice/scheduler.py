@@ -3,15 +3,15 @@ import threading
 from typing import Optional
 from edith.utils.logger import logger
 from edith.voice.models import VoiceEvent, VoiceMessage, event_bus
-from edith.voice.sounds import sound_manager
 from edith.voice.providers.base_provider import BaseTTSProvider
 
 class SpeechScheduler:
-    def __init__(self):
+    def __init__(self, sound_manager=None):
         self._queue: queue.PriorityQueue = queue.PriorityQueue()
         self._is_running = False
         self._worker_thread: Optional[threading.Thread] = None
         self._tts_provider: Optional[BaseTTSProvider] = None
+        self._sound_manager = sound_manager
 
     def start(self, tts_provider: BaseTTSProvider):
         """Starts the scheduler worker thread."""
@@ -60,7 +60,8 @@ class SpeechScheduler:
                         self._tts_provider.speak(msg.text, interruptible=msg.interruptible)
                 except Exception as e:
                     logger.error(f"SpeechScheduler: TTS Error during playback: {e}")
-                    sound_manager.play_error()
+                    if self._sound_manager:
+                        self._sound_manager.play_error()
                 finally:
                     event_bus.publish(VoiceEvent.VOICE_STOPPED, msg)
                     self._queue.task_done()
@@ -75,5 +76,5 @@ class SpeechScheduler:
             self._tts_provider.stop()
         if self._worker_thread:
             self._worker_thread.join(timeout=2.0)
-            
-scheduler = SpeechScheduler()
+
+# NO MODULE-LEVEL SINGLETON — created in build_app()

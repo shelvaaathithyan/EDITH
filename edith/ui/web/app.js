@@ -13,12 +13,18 @@ const stages = {
     'STT_FINISHED': 'stage-stt',
     'PLANNER_STARTED': 'stage-planner',
     'PLANNER_COMPLETED': 'stage-planner',
+    'PLANNER_FAILED': 'stage-planner',
     'CAPABILITY_RESOLVER_STARTED': 'stage-resolver',
     'CAPABILITY_RESOLVER_FINISHED': 'stage-resolver',
     'CAPABILITY_STARTED': 'stage-capability',
     'CAPABILITY_FINISHED': 'stage-capability',
+    'CAPABILITY_FAILED': 'stage-capability',
     'GENERATOR_STARTED': 'stage-generator',
     'GENERATOR_FINISHED': 'stage-generator',
+    'GENERATOR_FAILED': 'stage-generator',
+    'TTS_STARTED': 'stage-tts',
+    'TTS_FINISHED': 'stage-tts',
+    'TTS_FAILED': 'stage-tts',
     'VOICE_STARTED': 'stage-tts',
     'VOICE_STOPPED': 'stage-tts'
 };
@@ -38,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (li.getAttribute('data-tab') === 'memory') loadMemory();
             if (li.getAttribute('data-tab') === 'capabilities') loadCapabilities();
             if (li.getAttribute('data-tab') === 'context') loadContext();
+            if (li.getAttribute('data-tab') === 'health') loadRuntimeHealth();
         });
     });
 
@@ -62,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         eventTimeline = [];
     });
 
-    // Periodic polling for system metrics ONLY
+    // Periodic polling for system metrics AND health
     setInterval(pollMetrics, 2000);
 });
 
@@ -80,6 +87,12 @@ async function pollMetrics() {
             updateAudioViz(true);
         } else {
             updateAudioViz(false);
+        }
+
+        // If health tab is active, auto-refresh it
+        const activeTab = document.querySelector('.nav-links li.active');
+        if (activeTab && activeTab.getAttribute('data-tab') === 'health') {
+            loadRuntimeHealth();
         }
     } catch(e) {}
 }
@@ -137,7 +150,22 @@ window.onAppEvent = function(jsonStr) {
                 document.getElementById('voice-stt-conf').innerText = `${(ev.data.confidence * 100).toFixed(0)}%`;
             }
             break;
-            
+
+        case 'PLANNER_FAILED':
+            document.getElementById('voice-state').innerText = 'Planner Error';
+            markPipelineError(ev.data.error || 'Planner failed', ev.data.traceback);
+            break;
+
+        case 'CAPABILITY_FAILED':
+            document.getElementById('voice-state').innerText = 'Capability Error';
+            markPipelineError(ev.data.message || 'Capability failed', ev.data.traceback);
+            break;
+
+        case 'TTS_FAILED':
+            document.getElementById('voice-state').innerText = 'TTS Error';
+            markPipelineError(ev.data.error || 'TTS failed', ev.data.traceback);
+            break;
+
         case 'CAPABILITY_FINISHED':
             showToast('Capability Executed', 'Capability executed successfully.');
             break;
@@ -163,6 +191,12 @@ function updatePipelineStage(id, eventName, data) {
     
     const statusSpan = el.querySelector('.status');
     const errDiv = el.querySelector('.stage-error');
+
+    // If already marked as error, don't overwrite it with a generic running event
+    if (el.classList.contains('error') && !eventName.endsWith('_FAILED')) {
+        return;
+    }
+
     errDiv.style.display = 'none';
 
     // Remove old classes
@@ -173,10 +207,16 @@ function updatePipelineStage(id, eventName, data) {
         el.classList.add('active');
         statusSpan.classList.add('running');
         statusSpan.innerText = 'Running...';
-    } else if (eventName.endsWith('_FINISHED') || eventName.endsWith('_COMPLETED') || eventName === 'WAKE_WORD_DETECTED') {
+    } else if (eventName.endsWith('_FINISHED') || eventName.endsWith('_COMPLETED') || eventName === 'WAKE_WORD_DETECTED' || eventName === 'VOICE_STOPPED') {
         el.classList.add('success');
         statusSpan.classList.add('success');
         statusSpan.innerText = 'Success';
+    } else if (eventName.endsWith('_FAILED')) {
+        el.classList.add('error');
+        statusSpan.classList.add('error');
+        statusSpan.innerText = 'Failed';
+        errDiv.innerText = `Reason: ${data?.error || data?.message || 'Failed'}`;
+        errDiv.style.display = 'block';
     }
     
     // Save to trace
@@ -253,8 +293,8 @@ function addTimelineEvent(ev) {
     
     let typeClass = 'info';
     if(ev.event.includes('ERROR') || ev.event.includes('FAILED')) typeClass = 'error';
-    else if(ev.event.includes('COMPLETED') || ev.event.includes('FINISHED') || ev.event.includes('SUCCESS')) typeClass = 'success';
-    else if(ev.event.includes('STARTED') || ev.event.includes('RUNNING')) typeClass = 'running';
+    else if(ev.event.includes('COMPLETED') || ev.event.includes('FINISHED') || ev.event.includes('SUCCESS') || ev.event === 'VOICE_STOPPED') typeClass = 'success';
+    else if(ev.event.includes('STARTED') || ev.event.includes('RUNNING') || ev.event === 'VOICE_STARTED') typeClass = 'running';
 
     const div = document.createElement('div');
     div.className = `timeline-item ${typeClass}`;
@@ -275,7 +315,7 @@ function addConsoleLog(ev) {
     div.className = 'log-line';
     
     let level = 'info';
-    if(ev.event.includes('ERROR')) level = 'error';
+    if(ev.event.includes('ERROR') || ev.event.includes('FAILED')) level = 'error';
     if(ev.event.includes('WARN')) level = 'warn';
 
     div.innerHTML = `
@@ -368,5 +408,74 @@ async function loadContext() {
         container.insertAdjacentHTML('beforeend', makeCard("Last Response", ctx.final_response));
         container.insertAdjacentHTML('beforeend', makeCard("Permissions", ctx.permission_context));
         container.insertAdjacentHTML('beforeend', makeCard("System Details", ctx.system_context));
+    } catch(e) {}
+}
+
+async function loadRuntimeHealth() {
+    if (!window.pywebview) return;
+    try {
+        const report = await pywebview.api.get_runtime_diagnostics();
+        const container = document.getElementById('health-container');
+        container.innerHTML = '';
+        
+        if (!report) return;
+
+        const getBadgeClass = (status) => {
+            if (!status) return 'error';
+            const s = status.toLowerCase();
+            if (s === 'healthy' || s === 'true' || s === 'running') return 'healthy';
+            if (s === 'initializing' || s === 'optional' || s === 'degraded' || s === 'false') return 'warning';
+            return 'error';
+        };
+
+        const createCard = (title, detailsObj) => {
+            let html = `<div class="cap-card"><div class="cap-header"><h3>${title}</h3></div><div class="cap-body">`;
+            for (const [k, v] of Object.entries(detailsObj)) {
+                let displayValue = typeof v === 'boolean' ? (v ? 'True' : 'False') : v;
+                let badgeClass = '';
+                
+                // Special handling for Spotify and booleans
+                if (title === 'Spotify' && k === 'Connected' && !v) {
+                    badgeClass = 'warning';
+                } else if (typeof v === 'boolean') {
+                    badgeClass = v ? 'healthy' : 'error';
+                } else if (title === 'Subsystems' && typeof v === 'string') {
+                    badgeClass = getBadgeClass(v);
+                }
+                
+                let badge = badgeClass ? `<span class="badge ${badgeClass}">${displayValue}</span>` : `<span>${displayValue}</span>`;
+                html += `<div class="cap-stat"><span>${k.replace(/_/g, ' ')}</span> ${badge}</div>`;
+            }
+            html += `</div></div>`;
+            return html;
+        };
+
+        // 1. Provider
+        container.insertAdjacentHTML('beforeend', createCard('Ollama Provider', {
+            'Configured Model': report.ollama?.configured_model || 'Unknown',
+            'Resolved Model': report.ollama?.resolved_model || 'Unknown',
+            'Installed Models': (report.ollama?.installed_models || []).join(', ') || 'None',
+            'Inference Test': report.ollama?.inference_test ?? false
+        }));
+
+        // 2. Lifecycles
+        container.insertAdjacentHTML('beforeend', createCard('Lifecycle Status', {
+            'Planner Initialized': report.lifecycle?.planner_initialized ?? false,
+            'Provider Initialized': report.lifecycle?.provider_initialized ?? false
+        }));
+
+        // 3. Subsystems
+        const subObj = {};
+        report.subsystems?.forEach(s => { subObj[s.name] = s.status; });
+        container.insertAdjacentHTML('beforeend', createCard('Subsystems', subObj));
+
+        // 4. Capabilities
+        const capObj = {};
+        for (const [k, v] of Object.entries(report.capabilities || {})) {
+            // Spotify special rule applied in createCard
+            capObj[k] = v;
+        }
+        container.insertAdjacentHTML('beforeend', createCard('Capabilities', capObj));
+
     } catch(e) {}
 }

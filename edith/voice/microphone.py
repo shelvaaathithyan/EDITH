@@ -38,4 +38,4 @@ class MicrophoneManager:
         with self._lock:
             return self._is_locked
 
-microphone = MicrophoneManager()
+# NO MODULE-LEVEL SINGLETON — created in build_app()
